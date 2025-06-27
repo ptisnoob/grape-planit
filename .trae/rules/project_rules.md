@@ -1,0 +1,2 @@
+- 1、当前项目采用tauri2、vue3、typescript
+- 2、动画采用animate.cs

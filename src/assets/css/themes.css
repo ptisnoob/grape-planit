@@ -1,0 +1,154 @@
+/* 主题变量定义 */
+:root {
+  /* 浅色主题 */
+  --bg-primary: rgba(255, 255, 255, 0.35);
+  --bg-secondary: rgba(248, 249, 250, 0.35);
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --border-color: #e0e0e0;
+  --accent-color: #007bff;
+  --shadow: rgba(0, 0, 0, 0.1);
+  
+  /* 动画变量 */
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.35s ease;
+}
+
+/* 深色主题 */
+[data-theme="dark"] {
+  --bg-primary: rgba(26, 26, 26, 0.35);
+  --bg-secondary: rgba(45, 45, 45, 0.35);
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --border-color: #404040;
+  --accent-color: #4dabf7;
+  --shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* 自动主题（跟随系统） */
+[data-theme="auto"] {
+  --bg-primary: rgba(255, 255, 255, 0.35);
+  --bg-secondary: rgba(248, 249, 250, 0.35);
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --border-color: #e0e0e0;
+  --accent-color: #007bff;
+  --shadow: rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="auto"] {
+    --bg-primary: rgba(26, 26, 26, 0.35);
+    --bg-secondary: rgba(45, 45, 45, 0.35);
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --border-color: #404040;
+    --accent-color: #4dabf7;
+    --shadow: rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* 基础样式应用主题变量 */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+  backdrop-filter: blur(10px);
+}
+
+/* 悬浮效果应用到#app容器 */
+#app:hover {
+  /* 悬浮时 设置对应主题背景透明度为0.9 */
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* 深色主题悬浮效果 */
+[data-theme="dark"] #app:hover {
+  background-color: rgba(26, 26, 26, 0.9) !important;
+}
+
+/* 自动主题悬浮效果 */
+[data-theme="auto"] #app:hover {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+
+/* 动画类 */
+.theme-transition {
+  transition: all var(--transition-normal);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--transition-normal);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform var(--transition-normal), opacity var(--transition-normal);
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(20px);
+  opacity: 0;
+}
+
+/* 卡片样式 */
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px var(--shadow);
+  transition: all var(--transition-normal);
+  backdrop-filter: blur(10px);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px var(--shadow);
+}
+
+/* 按钮样式 */
+.btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: 500;
+}
+
+.btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.btn:active {
+  transform: scale(0.358);
+}
+
+/* 输入框样式 */
+.input {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 8px 12px;
+  transition: all var(--transition-fast);
+}
+
+.input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  outline: none;
+}

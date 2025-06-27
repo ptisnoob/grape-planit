@@ -1,0 +1,208 @@
+// SCSS 变量和工具类生成
+
+// 定义属性类型和前缀
+$properties: (
+    'margin': 'm',
+    'padding': 'p'
+);
+
+// 定义方向和对应的CSS属性
+$directions: (
+    'a': (''),
+    // all - 全方向
+    'x': ('-left', '-right'),
+    // horizontal - 水平
+    'y': ('-top', '-bottom'),
+    // vertical - 垂直
+    't': ('-top'),
+    // top - 上
+    'r': ('-right'),
+    // right - 右
+    'b': ('-bottom'),
+    // bottom - 下
+    'l': ('-left') // left - 左
+);
+
+// 统一循环生成 margin 和 padding 工具类
+@each $property, $prefix in $properties {
+
+    // 循环从 1 到 30，每个数字对应 n*4px
+    @for $i from 1 through 30 {
+        $value: #{$i * 4}px;
+
+        @each $direction, $suffixes in $directions {
+
+            // 生成 pa-n20 格式的类名 (如 pa-n20 = padding: 80px)
+            .#{$prefix}#{$direction}-n#{$i} {
+                @if length($suffixes)==0 {
+                    // 全方向 (如 ma-n4, pa-n4)
+                    #{$property}: $value;
+                }
+
+                @else {
+
+                    // 指定方向 (如 mx-n4, py-n4, mt-n4 等)
+                    @each $suffix in $suffixes {
+                        #{$property}#{$suffix}: $value;
+                    }
+                }
+            }
+
+            // 生成 pa-20 格式的类名 (如 pa-20 = padding: 80px)
+            .#{$prefix}#{$direction}-#{$i * 4} {
+                @if length($suffixes)==0 {
+                    // 全方向 (如 ma-4, pa-4)
+                    #{$property}: $value;
+                }
+
+                @else {
+
+                    // 指定方向 (如 mx-4, py-4, mt-4 等)
+                    @each $suffix in $suffixes {
+                        #{$property}#{$suffix}: $value;
+                    }
+                }
+            }
+
+            // 生成负值类名 (仅适用于 margin)
+            @if $property =='margin' {
+                // pa-n20 格式的负值
+                .-#{$prefix}#{$direction}-n#{$i} {
+                    @if length($suffixes)==0 {
+                        // 全方向负值 (如 -ma-n4)
+                        #{$property}: -$value;
+                    }
+
+                    @else {
+
+                        // 指定方向负值 (如 -mx-n4, -mt-n4 等)
+                        @each $suffix in $suffixes {
+                            #{$property}#{$suffix}: -$value;
+                        }
+                    }
+                }
+
+                // pa-20 格式的负值
+                .-#{$prefix}#{$direction}-#{$i * 4} {
+                    @if length($suffixes)==0 {
+                        // 全方向负值 (如 -ma-4)
+                        #{$property}: -$value;
+                    }
+
+                    @else {
+
+                        // 指定方向负值 (如 -mx-4, -mt-4 等)
+                        @each $suffix in $suffixes {
+                            #{$property}#{$suffix}: -$value;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 零值工具类
+@each $property, $prefix in $properties {
+    @each $direction, $suffixes in $directions {
+        .#{$prefix}#{$direction}-0 {
+            @if length($suffixes)==0 {
+                #{$property}: 0;
+            }
+
+            @else {
+                @each $suffix in $suffixes {
+                    #{$property}#{$suffix}: 0;
+                }
+            }
+        }
+    }
+}
+
+// 字重工具类
+.text-weight-n {
+    font-weight: normal;
+}
+
+.text-weight-b {
+    font-weight: bold;
+}
+
+.text-weight-100 {
+    font-weight: 100;
+}
+
+.text-weight-200 {
+    font-weight: 200;
+}
+
+.text-weight-300 {
+    font-weight: 300;
+}
+
+.text-weight-400 {
+    font-weight: 400;
+}
+
+.text-weight-500 {
+    font-weight: 500;
+}
+
+.text-weight-600 {
+    font-weight: 600;
+}
+
+.text-weight-700 {
+    font-weight: 700;
+}
+
+.text-weight-800 {
+    font-weight: 800;
+}
+
+.text-weight-900 {
+    font-weight: 900;
+}
+
+// 文本对齐工具类
+.text-align-left {
+    text-align: left;
+}
+
+.text-align-center {
+    text-align: center;
+}
+
+.text-align-right {
+    text-align: right;
+}
+
+.text-align-justify {
+    text-align: justify;
+}
+
+// 文本溢出工具类
+.text-overflow-1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.text-overflow-2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+}
+
+.text-overflow-3 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+}
+

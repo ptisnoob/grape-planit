@@ -1,0 +1,55 @@
+@font-face {
+    font-family: 'DaoLiTi';
+    src: url('@/assets/fonts/AlimamaDaoLiTi-Regular..woff2') format('woff2'),
+        url('@/assets/fonts/AlimamaDaoLiTi-Regular..woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* 基础css还原 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* 基础字体样式 */
+body {
+    font-family: 'DaoLiTi', sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+/* 链接样式重置 */
+a {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* 列表样式重置 */
+ul,
+ol {
+    list-style: none;
+}
+
+li {
+    list-style: none;
+}
+
+/* flex布局 */
+.flex {
+    display: flex;
+}
+
+.flex-r-c-c {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+}
