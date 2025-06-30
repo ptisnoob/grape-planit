@@ -10,9 +10,17 @@ export function useDatabase() {
    */
   const loadConfigFromDb = async (): Promise<CountdownConfig> => {
     try {
-      return await invoke('load_config_from_db');
+      console.log('🔧 [useDatabase] 开始调用 load_config_from_db...');
+      const result = await invoke('load_config_from_db');
+      console.log('🔧 [useDatabase] load_config_from_db 成功返回:', result);
+      return result;
     } catch (error) {
-      console.error('Failed to load config from database:', error);
+      console.error('❌ [useDatabase] 从数据库加载配置失败:', error);
+      console.error('❌ [useDatabase] 错误详情:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       throw error;
     }
   };
@@ -34,9 +42,16 @@ export function useDatabase() {
    */
   const updateCountdownConfig = async (config: CountdownConfig): Promise<void> => {
     try {
+      console.log('🔧 [useDatabase] 开始调用 update_countdown_config...', config);
       await invoke('update_countdown_config', { config });
+      console.log('🔧 [useDatabase] update_countdown_config 成功完成');
     } catch (error) {
-      console.error('Failed to update countdown config:', error);
+      console.error('❌ [useDatabase] 更新倒计时配置失败:', error);
+      console.error('❌ [useDatabase] 错误详情:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       throw error;
     }
   };

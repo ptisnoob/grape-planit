@@ -3,6 +3,9 @@
         <div class="header-left">
             <Icon :name="currentNav.icon" :size="18" @click="toggleNav" />
             <ModeToggle v-if="route.path === '/'" @mode-changed="handleModeChange" />
+            <button v-if="route.path === '/list'" class="nav-link settings-btn"  @click="toAddTodo" >
+                <Icon name="plus" :size="18" />
+            </button>
         </div>
         <div class="header-right">
             <ThemeToggle />
@@ -38,6 +41,9 @@ const navs = [
 const currentNavIndex = ref(0);
 
 const currentNav = computed(() => navs[currentNavIndex.value]);
+const toAddTodo = () => {
+    router.push('/add');
+}
 
 const toggleNav = () => {
     currentNavIndex.value = (currentNavIndex.value + 1) % navs.length;

@@ -1,5 +1,8 @@
 <template>
   <div class="list-view">
+    <div class="add-button-container">
+      <router-link to="/add" class="add-btn">+</router-link>
+    </div>
     <div class="list-container">
       <div class="drag-area">
         <div v-for="(item, index) in list" :key="item.id" class="list-item"
@@ -8,7 +11,7 @@
           @click="handleClick(item)">
           <div class="item-header">
             <span class="item-title">{{ item.title }}</span>
-            <span class="item-due-date">截止时间: {{ item.startTime }}</span>
+            <span class="item-due-date">截止时间: {{ item.category }}</span>
           </div>
           <transition name="expand">
             <div v-if="item.expanded" class="item-notes">
@@ -43,30 +46,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { RouterLink } from 'vue-router';
+import { ref, computed, onMounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { Todo } from '@/model/todo';
 
+const list = ref<Todo[]>([]);
 
-const list = ref<Todo[]>([
-  {
-    id: 1, title: '完成项目报告', startTime: '2024-07-20', notes: '包含Q2数据', expanded: false,
-    level: 0,
-    status: 0,
-    cycle: 'one'
-  },
-  {
-    id: 2, title: '学习 Vue 3', startTime: '2024-07-22', notes: '组合式 API', expanded: false,
-    level: 0,
-    status: 0,
-    cycle: 'one'
-  },
-  {
-    id: 3, title: '整理文件', startTime: '2024-07-25', notes: '清理旧文档', expanded: false,
-    level: 0,
-    status: 0,
-    cycle: 'one'
-  },
-]);
+const loadTodos = async () => {
+  try {
+    const todos = await invoke('get_all_todos');
+    list.value = (todos as Todo[]).map(todo => ({ ...todo, expanded: false }));
+  } catch (error) {
+    console.error('Failed to load todos:', error);
+  }
+};
+
+onMounted(() => {
+  loadTodos();
+});
 
 const isDragging = ref(false);
 const dragIndex = ref(-1);
@@ -145,14 +143,26 @@ const onMouseMove = (e: MouseEvent) => {
   }
 };
 
-const onMouseUp = () => {
+const onMouseUp = async () => {
   let wasDragging = isDragging.value; // 记录是否在拖拽状态
 
   if (dragIndex.value >= 0) {
+    const todo = list.value[dragIndex.value];
     if (dragAction.value === 'delete') {
-      list.value.splice(dragIndex.value, 1);
+      try {
+        await invoke('delete_todo', { id: todo.id });
+        list.value.splice(dragIndex.value, 1);
+      } catch (error) {
+        console.error('Failed to delete todo:', error);
+      }
     } else if (dragAction.value === 'complete') {
-      list.value[dragIndex.value].title += ' ✅';
+      try {
+        const updatedTodo = { ...todo, status: 1 };
+        await invoke('update_todo', { todo: updatedTodo });
+        list.value.splice(dragIndex.value, 1); // 从列表中移除
+      } catch (error) {
+        console.error('Failed to complete todo:', error);
+      }
     }
   }
 
@@ -179,6 +189,33 @@ const onMouseUp = () => {
 </script>
 
 <style scoped>
+.add-button-container {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 100;
+}
+
+.add-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: var(--accent-color);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.add-btn:hover {
+  transform: scale(1.1);
+  background-color: var(--accent-color-hover);
+}
+
 .list-view {
   width: 100%;
   height: 100%;

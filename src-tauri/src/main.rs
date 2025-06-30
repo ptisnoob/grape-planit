@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    grape_planit_lib::run()
+    grape_planit_lib::run();
 }

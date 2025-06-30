@@ -8,7 +8,8 @@
         </div>
 
         <!-- 日期信息 -->
-        <div class="date-info animate__animated animate__fadeInUp animate__delay-1s" v-if="modeStore.currentMode === 'current'">
+        <div class="date-info animate__animated animate__fadeInUp animate__delay-1s"
+            v-if="modeStore.currentMode === 'current'">
             <p class="date-text">{{ currentDate }} {{ currentWeekday }}</p>
             <p class="holiday-text">下个节日：{{ nextHoliday.name }} (<span
                     class="holiday-days animate__animated animate__pulse animate__infinite">{{ nextHoliday.days
@@ -34,7 +35,7 @@
 
         <!-- 最后倒计时效果 -->
         <div class="final-countdown-container" v-if="shouldShowFinalCountdown">
-            <div class="final-countdown-number animate__animated animate__fadeInUpBig">
+            <div :key="finalCountdownNumber" class="final-countdown-number animate__animated animate__pulse">
                 {{ finalCountdownNumber }}
             </div>
         </div>
@@ -43,7 +44,8 @@
             v-if="!shouldShowFinalCountdown">{{ motivationText }}</h2>
 
         <!-- 下班时间设置弹窗 -->
-        <WorkEndSettings :visible="showWorkEndSettings" :work-end-time="workEndTime" @close="closeWorkEndSettings" />
+        <WorkEndSettings :visible="showWorkEndSettings" :work-end-time="workEndTime" @close="closeWorkEndSettings"
+            @saved="handleWorkEndSaved" />
 
         <!-- 自定义倒计时设置弹窗 -->
         <CustomCountdownSettings :visible="showSettings" :custom-countdown="customCountdown" @close="closeSettings" />
@@ -75,7 +77,7 @@ const countdownData = ref<CountdownData | null>(null)
 const config = ref<CountdownConfig | null>(null)
 
 const modeStore = useModeStore()
-const { loadConfigFromDb, saveConfigToDb, updateCountdownConfig: updateConfigInDb } = useDatabase()
+const { loadConfigFromDb, updateCountdownConfig: updateConfigInDb } = useDatabase()
 
 const showSettings = ref(false)
 const showWorkEndSettings = ref(false)
@@ -172,21 +174,14 @@ const toggleTimeDisplay = async () => {
 const loadConfig = async () => {
     try {
         // 优先从数据库加载配置
-        let rustConfig: CountdownConfig
-        try {
-            rustConfig = await loadConfigFromDb()
-        } catch (dbError) {
-            console.warn('Failed to load from database, falling back to file:', dbError)
-            // 如果数据库加载失败，回退到文件加载
-            rustConfig = await invoke('get_countdown_config') as CountdownConfig
-        }
-        
+        const rustConfig = await loadConfigFromDb()
+
         config.value = rustConfig
         showSeconds.value = rustConfig.showSeconds
         workEndTime.value = rustConfig.workEndTime
         customCountdown.value = rustConfig.customCountdown
     } catch (error) {
-        console.error('Failed to load config:', error)
+        console.error('Failed to load config from database:', error)
     }
 }
 
@@ -194,10 +189,8 @@ const updateConfig = async () => {
     if (!config.value) return
 
     try {
-        // 同时更新数据库和文件
+        // 使用updateConfigInDb统一更新（它内部会调用update_countdown_config）
         await updateConfigInDb(config.value)
-        // 备份到文件以保持向后兼容性
-        await invoke('update_countdown_config', { config: config.value })
     } catch (error) {
         console.error('Failed to update config:', error)
     }
@@ -210,6 +203,11 @@ const closeWorkEndSettings = () => {
 
 const openWorkEndSettings = () => {
     showWorkEndSettings.value = true
+}
+
+const handleWorkEndSaved = async () => {
+    // 重新加载配置以更新倒计时
+    await loadConfig()
 }
 
 const openSettings = () => {

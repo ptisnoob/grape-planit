@@ -26,7 +26,8 @@
 
     <template #footer>
       <button class="btn-secondary" @click="handleCancel">取消</button>
-      <button class="btn-primary" @click="handleSave">保存</button>
+      <button class="btn-primary"
+        @click="() => { console.log('🔧 [WorkEndSettings] 保存按钮被点击'); handleSave(); }">保存</button>
     </template>
   </Modal>
 </template>
@@ -34,7 +35,6 @@
 <script lang="ts" setup>
 import { ref, watch } from 'vue'
 import Modal from './Modal.vue'
-import { invoke } from '@tauri-apps/api/core'
 import { CountdownConfig } from '@/model/countdown'
 import { useDatabase } from '@/composables/useDatabase'
 
@@ -47,12 +47,13 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
+  saved: []
 }>()
 
 const { loadConfigFromDb, updateCountdownConfig: updateConfigInDb } = useDatabase()
 
-const workEndHours = ref(['', ''])
-const workEndMinutes = ref(['', ''])
+const workEndHours = ref(['0', '0'])
+const workEndMinutes = ref(['0', '0'])
 
 // 监听props变化，初始化输入框
 watch(() => props.workEndTime, (newTime) => {
@@ -129,32 +130,29 @@ const onMinuteInput = (index: number, event: Event) => {
 }
 
 const handleSave = async () => {
+
   const hours = workEndHours.value.join('')
   const minutes = workEndMinutes.value.join('')
 
   if (hours.length === 2 && minutes.length === 2) {
     const timeString = `${hours}:${minutes}`
+
     try {
-      // 优先从数据库加载配置
-      let config: CountdownConfig
-      try {
-        config = await loadConfigFromDb()
-      } catch (dbError) {
-        console.warn('Failed to load from database, falling back to file:', dbError)
-        config = await invoke('get_countdown_config')
-      }
-      
+      // 从数据库加载配置
+      const config: CountdownConfig = await loadConfigFromDb()
+
       config.workEndTime = timeString
-      
-      // 同时更新数据库和文件
+
+      // 更新数据库中的配置
       await updateConfigInDb(config)
-      // 备份到文件以保持向后兼容性
-      await invoke('update_countdown_config', { config })
-      
+
+      emit('saved')
       emit('close')
     } catch (error) {
-      console.error('Failed to save work end time:', error)
+      console.error('❌ [WorkEndSettings] 保存下班时间失败:', error)
     }
+  } else {
+    console.warn('⚠️ [WorkEndSettings] 时间格式不正确，跳过保存')
   }
 }
 

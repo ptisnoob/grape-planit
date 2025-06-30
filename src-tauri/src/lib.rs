@@ -1,16 +1,14 @@
-use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use std::sync::{Arc, Mutex};
+use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, PhysicalPosition};
 
 // 导入自定义模块
-mod countdown;
-mod database;
+pub mod countdown;
+pub mod database;
 
-use countdown::{get_countdown_config, start_countdown_timer, update_countdown_config};
-use database::{get_migrations, CountdownConfig};
-use database::{load_config_from_db, save_config_to_db, save_countdown_record};
+pub use database::{get_migrations, CountdownConfig};
 
 type ConfigState = Arc<Mutex<CountdownConfig>>;
 
@@ -185,7 +183,7 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
     }
 }
 
-async fn db_pool(app: &tauri::AppHandle) -> Result<SqlitePool, sqlx::Error> {
+pub async fn db_pool(app: &tauri::AppHandle) -> Result<SqlitePool, sqlx::Error> {
     let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
     if !app_data_dir.exists() {
         std::fs::create_dir_all(&app_data_dir).expect("Failed to create app data dir");
@@ -199,15 +197,15 @@ async fn db_pool(app: &tauri::AppHandle) -> Result<SqlitePool, sqlx::Error> {
     SqlitePool::connect(&db_url).await
 }
 
-#[tokio::main]
-pub async fn run() {
+pub fn run() {
     let config = database::get_default_config();
-    let config_state: ConfigState = Arc::new(Mutex::new(config));
+    let _config_state: ConfigState = Arc::new(Mutex::new(config));
 
     tauri::Builder::default()
-        .setup(move |app| {
+        .setup(|app| {
             let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let pool = rt.block_on(async {
                 let pool = db_pool(&handle).await.expect("Failed to create database pool.");
                 let migrations = get_migrations();
                 for migration in migrations {
@@ -216,7 +214,17 @@ pub async fn run() {
                         .await
                         .expect(&format!("Failed to execute migration: {}", migration.description));
                 }
-                handle.manage(pool);
+                pool
+            });
+
+            app.manage(pool);
+
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let pool_state: tauri::State<SqlitePool> = app_handle.state();
+                if let Err(e) = countdown::start_countdown_timer(app_handle.clone(), pool_state).await {
+                    eprintln!("Failed to start countdown timer: {}", e);
+                }
             });
 
             let menu = create_tray_menu(app.handle()).expect("Failed to create tray menu");
@@ -234,12 +242,15 @@ pub async fn run() {
             toggle_always_on_top,
             toggle_shadow,
             set_window_position,
-            get_countdown_config,
-            update_countdown_config,
-            start_countdown_timer,
-            load_config_from_db,
-            save_config_to_db,
-            save_countdown_record
+            countdown::update_countdown_config,
+            countdown::start_countdown_timer,
+            database::load_config_from_db,
+            database::save_config_to_db,
+            database::save_countdown_record,
+            database::add_todo,
+            database::get_all_todos,
+            database::update_todo,
+            database::delete_todo
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

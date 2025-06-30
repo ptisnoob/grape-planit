@@ -1,9 +1,7 @@
-use crate::database::{get_default_config, save_countdown_record, CountdownConfig};
+use crate::database::{self, CountdownConfig, save_countdown_record};
 use chrono::{DateTime, Local, NaiveTime, TimeZone};
 use serde::Serialize;
 use sqlx::SqlitePool;
-use std::fs;
-use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, State};
 use tokio::time::{interval, Duration};
 
@@ -15,65 +13,36 @@ pub struct CountdownData {
     pub status: String, // "running", "finished", "reset"
 }
 
-// 文件操作相关函数
-fn get_config_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
-    path.pop(); // 移除可执行文件名
-    path.push("config");
-    path.push("countdown.json");
-    path
-}
-
-fn load_config() -> CountdownConfig {
-    // 保持向后兼容，优先从文件加载，如果文件不存在则使用默认配置
-    let config_path = get_config_path();
-
-    if config_path.exists() {
-        match fs::read_to_string(&config_path) {
-            Ok(content) => match serde_json::from_str::<CountdownConfig>(&content) {
-                Ok(config) => config,
-                Err(_) => get_default_config(),
-            },
-            Err(_) => get_default_config(),
-        }
-    } else {
-        get_default_config()
-    }
-}
-
-fn save_config(config: &CountdownConfig) -> Result<(), String> {
-    let config_path = get_config_path();
-
-    // 确保目录存在
-    if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-
-    let content = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    fs::write(&config_path, content).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-// Tauri命令函数
-#[tauri::command]
-pub fn get_countdown_config() -> CountdownConfig {
-    load_config()
-}
-
 #[tauri::command]
 pub async fn update_countdown_config(
     pool: State<'_, SqlitePool>,
     config: CountdownConfig,
 ) -> Result<(), String> {
+    println!("🔧 [Rust] update_countdown_config 被调用，配置: {:?}", config);
+    
     // 保存到数据库
-    crate::database::save_config_to_db(pool, config.clone()).await?;
-
-    // 同时保存到文件以保持向后兼容
-    save_config(&config)
+    match crate::database::save_config_to_db(pool.clone(), config.clone()).await {
+        Ok(_) => {
+            println!("🔧 [Rust] update_countdown_config 成功保存到数据库");
+            Ok(())
+        }
+        Err(e) => {
+            println!("❌ [Rust] update_countdown_config 保存失败: {}", e);
+            Err(e)
+        }
+    }
 }
 
-pub fn calculate_countdown_timestamp() -> CountdownData {
-    let config = load_config();
+pub async fn calculate_countdown_timestamp(pool: &SqlitePool) -> CountdownData {
+    let config = match database::load_config_from_db_internal(pool).await {
+        Ok(config) => config,
+        Err(_) => return CountdownData { // 如果数据库出错，返回一个错误状态
+            mode: "error".to_string(),
+            timestamp: 0,
+            target_info: "无法加载配置".to_string(),
+            status: "reset".to_string(),
+        },
+    };
     let now = Local::now();
 
     match config.time_display_mode.as_str() {
@@ -176,8 +145,9 @@ pub async fn start_countdown_timer(
     app_handle: AppHandle,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), String> {
+    let pool_clone = pool.inner().clone();
     // 记录倒计时开始到数据库
-    let config = load_config();
+    let config = database::load_config_from_db_internal(&pool_clone).await.unwrap_or_else(|_| database::get_default_config());
     if config.time_display_mode == "workEnd" && !config.work_end_time.is_empty() {
         let _ = save_countdown_record(
             pool.clone(),
@@ -202,7 +172,7 @@ pub async fn start_countdown_timer(
         loop {
             interval.tick().await;
 
-            let countdown_data = calculate_countdown_timestamp();
+            let countdown_data = calculate_countdown_timestamp(&pool_clone).await;
 
             // 只在倒计时模式下发送事件
             if countdown_data.mode == "workEnd" || countdown_data.mode == "custom" {
