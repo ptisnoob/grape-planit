@@ -7,6 +7,7 @@ use tauri::{Manager, PhysicalPosition};
 // 导入自定义模块
 pub mod countdown;
 pub mod database;
+pub mod todo;
 
 pub use database::{get_migrations, CountdownConfig};
 
@@ -247,10 +248,11 @@ pub fn run() {
             database::load_config_from_db,
             database::save_config_to_db,
             database::save_countdown_record,
-            database::add_todo,
-            database::get_all_todos,
-            database::update_todo,
-            database::delete_todo
+            todo::add_todo,
+            todo::get_all_todos,
+            todo::get_recent_todos,
+            todo::update_todo,
+            todo::delete_todo
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

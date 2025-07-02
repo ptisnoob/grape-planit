@@ -68,7 +68,8 @@ pub fn get_migrations() -> Vec<Migration> {
             sql: "CREATE TABLE IF NOT EXISTS todos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
-                due_date TEXT,
+                start_time INTEGER NOT NULL, -- 开始时间戳（秒）
+                end_time INTEGER, -- 结束时间戳（秒），可为空
                 notes TEXT,
                 level INTEGER NOT NULL DEFAULT 0,
                 cycle TEXT NOT NULL DEFAULT 'one',
@@ -77,7 +78,8 @@ pub fn get_migrations() -> Vec<Migration> {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );",
             kind: MigrationKind::Up,
-        }
+        },
+
     ]
 }
 
@@ -153,84 +155,7 @@ pub async fn save_countdown_record(pool: State<'_, SqlitePool>, mode: String, ta
     Ok(())
 }
 
-// ================= Todo 相关 =================
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct Todo {
-    pub id: i64,
-    pub title: String,
-    pub due_date: String, // 使用字符串存储日期，例如 "YYYY-MM-DD HH:MM"
-    pub notes: Option<String>,
-    pub level: i64, // 0: 重要不紧急, 1: 重要且紧急, 2: 不重要不紧急, 3: 不重要但紧急
-    pub cycle: String, // one, day, week, month, year
-    pub status: i64, // 0: pending, 1: completed, 2: deleted
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-
-
-#[derive(serde::Deserialize)]
-pub struct AddTodoParams {
-    title: String,
-    #[serde(rename = "due_date")]
-    due_date: String,
-    notes: Option<String>,
-    level: i64,
-    cycle: String,
-}
-
-#[tauri::command]
-pub async fn add_todo(pool: State<'_, SqlitePool>, params: AddTodoParams) -> Result<i64, String> {
-    let result = sqlx::query(
-        "INSERT INTO todos (title, due_date, notes, level, cycle) VALUES (?, ?, ?, ?, ?)"
-    )
-    .bind(params.title)
-    .bind(params.due_date)
-    .bind(params.notes)
-    .bind(params.level)
-    .bind(params.cycle)
-    .execute(pool.inner())
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(result.last_insert_rowid())
-}
-
-#[tauri::command]
-pub async fn get_all_todos(pool: State<'_, SqlitePool>) -> Result<Vec<Todo>, String> {
-    sqlx::query_as::<_, Todo>("SELECT id, title, due_date, notes, level, cycle, status, created_at, updated_at FROM todos WHERE status != 2 ORDER BY created_at DESC")
-        .fetch_all(pool.inner())
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn update_todo(pool: State<'_, SqlitePool>, todo: Todo) -> Result<(), String> {
-    sqlx::query("UPDATE todos SET title = ?, due_date = ?, notes = ?, level = ?, cycle = ?, status = ?, updated_at = datetime('now') WHERE id = ?")
-        .bind(todo.title)
-        .bind(todo.due_date)
-        .bind(todo.notes)
-        .bind(todo.level)
-        .bind(todo.cycle)
-        .bind(todo.status)
-        .bind(todo.id)
-        .execute(pool.inner())
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn delete_todo(pool: State<'_, SqlitePool>, id: i64) -> Result<(), String> {
-    // 逻辑删除
-    sqlx::query("UPDATE todos SET status = 2, updated_at = datetime('now') WHERE id = ?")
-        .bind(id)
-        .execute(pool.inner())
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
 
 pub fn get_default_config() -> CountdownConfig {
     CountdownConfig {

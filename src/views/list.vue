@@ -4,14 +4,15 @@
       <router-link to="/add" class="add-btn">+</router-link>
     </div>
     <div class="list-container">
-      <div class="drag-area">
+      <div v-if="list.length > 0" class="drag-area">
         <div v-for="(item, index) in list" :key="item.id" class="list-item"
           :class="{ 'is-expanded': item.expanded, 'is-dragging': isDragging && dragIndex === index }"
           @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPress" @mouseleave="cancelLongPress"
           @click="handleClick(item)">
           <div class="item-header">
             <span class="item-title">{{ item.title }}</span>
-            <span class="item-due-date">截止时间: {{ item.category }}</span>
+            <span class="item-due-date" :class="getDueDateClass(item.startTime)">{{ getDueDateText(item.startTime)
+              }}</span>
           </div>
           <transition name="expand">
             <div v-if="item.expanded" class="item-notes">
@@ -20,6 +21,7 @@
           </transition>
         </div>
       </div>
+      <Empty v-else>暂无待办事项</Empty>
     </div>
 
     <!-- 删除区域 -->
@@ -50,13 +52,17 @@ import { RouterLink } from 'vue-router';
 import { ref, computed, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Todo } from '@/model/todo';
+import { GDate } from "@/common/date"
+import Empty from '@/components/Empty.vue';
 
 const list = ref<Todo[]>([]);
+const filterDays = ref(5); // 默认显示最近5天
 
 const loadTodos = async () => {
   try {
-    const todos = await invoke('get_all_todos');
+    const todos = await invoke('get_recent_todos', { days: filterDays.value });
     list.value = (todos as Todo[]).map(todo => ({ ...todo, expanded: false }));
+    console.log('Loaded todos:', todos);
   } catch (error) {
     console.error('Failed to load todos:', error);
   }
@@ -143,6 +149,53 @@ const onMouseMove = (e: MouseEvent) => {
   }
 };
 
+// 获取截止时间显示文字
+const getDueDateText = (startTime: number) => {
+  if (!startTime) return '未设置截止时间';
+
+  const dueDate = new GDate(startTime);
+  const today = new GDate();
+  const diffDays = Math.ceil((dueDate.getTime() - today.getStartOfDay().getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    const overdueDays = Math.abs(diffDays);
+    return `已逾期 ${overdueDays} 天`;
+  } else if (diffDays === 0) {
+    return '今天是最后一天啦！';
+  } else if (diffDays === 1) {
+    return '明天截止';
+  } else if (diffDays <= 3) {
+    return `还有 ${diffDays} 天`;
+  } else if (diffDays <= 7) {
+    return `还有 ${diffDays} 天`;
+  } else {
+    return `还有 ${diffDays} 天`;
+  }
+};
+
+// 获取截止时间样式类名
+const getDueDateClass = (startTime: number) => {
+  if (!startTime) return 'due-date-none';
+
+  const dueDate = new GDate(startTime);
+  const today = new GDate();
+  const diffDays = Math.ceil((dueDate.getTime() - today.getStartOfDay().getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return 'due-date-overdue';
+  } else if (diffDays === 0) {
+    return 'due-date-today';
+  } else if (diffDays === 1) {
+    return 'due-date-tomorrow';
+  } else if (diffDays <= 3) {
+    return 'due-date-urgent';
+  } else if (diffDays <= 7) {
+    return 'due-date-soon';
+  } else {
+    return 'due-date-normal';
+  }
+};
+
 const onMouseUp = async () => {
   let wasDragging = isDragging.value; // 记录是否在拖拽状态
 
@@ -189,6 +242,50 @@ const onMouseUp = async () => {
 </script>
 
 <style scoped>
+.filter-container {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 50;
+  background: var(--bg-secondary);
+  padding: 10px 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.filter-item label {
+  font-weight: 500;
+}
+
+.filter-item select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.filter-item select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.filter-item select:hover {
+  border-color: var(--accent-color);
+}
+
 .add-button-container {
   position: fixed;
   bottom: 30px;
@@ -197,23 +294,31 @@ const onMouseUp = async () => {
 }
 
 .add-btn {
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background-color: var(--accent-color);
   color: white;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 24px;
+  font-size: 20px;
   text-decoration: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: all 0.3s ease;
+  border: 2px solid transparent;
 }
 
 .add-btn:hover {
-  transform: scale(1.1);
-  background-color: var(--accent-color-hover);
+  transform: scale(1.05);
+  background-color: var(--accent-color-hover, var(--accent-color));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  border-color: var(--bg-primary);
+}
+
+.add-btn:active {
+  transform: scale(0.95);
+  transition: all 0.1s ease;
 }
 
 .list-view {
@@ -286,6 +391,90 @@ const onMouseUp = async () => {
   display: flex;
   justify-content: space-between;
   font-weight: bold;
+}
+
+.item-due-date {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+/* 截止时间样式 */
+.due-date-overdue {
+  background: linear-gradient(135deg, #ff4757, #ff3742);
+  color: white;
+  animation: pulse-urgent 2s ease-in-out infinite;
+  box-shadow: 0 2px 8px rgba(255, 71, 87, 0.4);
+}
+
+.due-date-today {
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  color: white;
+  animation: shake-gentle 1s ease-in-out infinite;
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+}
+
+.due-date-tomorrow {
+  background: linear-gradient(135deg, #ffa726, #ffb74d);
+  color: white;
+  box-shadow: 0 2px 6px rgba(255, 167, 38, 0.3);
+}
+
+.due-date-urgent {
+  background: linear-gradient(135deg, #ffca28, #ffd54f);
+  color: #333;
+  box-shadow: 0 2px 6px rgba(255, 202, 40, 0.3);
+}
+
+.due-date-soon {
+  background: linear-gradient(135deg, #66bb6a, #81c784);
+  color: white;
+  box-shadow: 0 2px 6px rgba(102, 187, 106, 0.3);
+}
+
+.due-date-normal {
+  background: linear-gradient(135deg, #42a5f5, #64b5f6);
+  color: white;
+  box-shadow: 0 2px 6px rgba(66, 165, 245, 0.3);
+}
+
+.due-date-none {
+  background: linear-gradient(135deg, #bdbdbd, #e0e0e0);
+  color: #666;
+  box-shadow: 0 2px 6px rgba(189, 189, 189, 0.2);
+}
+
+/* 动画效果 */
+@keyframes pulse-urgent {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+@keyframes shake-gentle {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-1px);
+  }
+
+  75% {
+    transform: translateX(1px);
+  }
 }
 
 .item-notes {

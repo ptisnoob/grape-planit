@@ -42,13 +42,13 @@
 
         <h2 class="motivation-text animate__animated animate__fadeInUp animate__delay-2s"
             v-if="!shouldShowFinalCountdown">{{ motivationText }}</h2>
-
         <!-- 下班时间设置弹窗 -->
         <WorkEndSettings :visible="showWorkEndSettings" :work-end-time="workEndTime" @close="closeWorkEndSettings"
             @saved="handleWorkEndSaved" />
 
         <!-- 自定义倒计时设置弹窗 -->
         <CustomCountdownSettings :visible="showSettings" :custom-countdown="customCountdown" @close="closeSettings" />
+
     </div>
 </template>
 
@@ -155,10 +155,6 @@ const finalCountdownNumber = computed(() => {
     return 0
 })
 
-// 最后倒计时显示的文本
-
-
-
 
 const toggleTimeDisplay = async () => {
     showSeconds.value = !showSeconds.value
@@ -232,6 +228,12 @@ const setupCountdownListener = async () => {
                 isInFinalCountdown.value = true
                 // 这里可以添加音效或其他效果
                 console.log('进入最后倒计时阶段！')
+
+                // 自动切换到对应的倒计时模式
+                if (newData.mode && modeStore.currentMode !== newData.mode) {
+                    console.log(`自动切换模式从 ${modeStore.currentMode} 到 ${newData.mode}`)
+                    modeStore.switchMode(newData.mode)
+                }
             }
 
             // 检查自定义倒计时是否从finished状态变为reset状态（重置）
