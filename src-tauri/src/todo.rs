@@ -61,16 +61,17 @@ pub async fn get_all_todos(pool: State<'_, SqlitePool>) -> Result<Vec<Todo>, Str
 pub async fn get_recent_todos(pool: State<'_, SqlitePool>, days: i64) -> Result<Vec<Todo>, String> {
     let now = chrono::Utc::now().timestamp();
     let cutoff_timestamp = now - (days * 24 * 60 * 60);
+    let future_timestamp = now + (days * 24 * 60 * 60);
     
     // 首先处理到期的循环任务
     process_expired_todos(pool.inner()).await?;
     
-    // 获取最近x天内的todos（开始时间在最近x天内），按优先级排序
+    // 获取最近x天内的todos（包括过去x天和未来x天的任务），按优先级排序
     let todos = sqlx::query_as::<_, Todo>(
         "SELECT id, title, start_time, end_time, notes, level, cycle, status, created_at, updated_at FROM todos WHERE status = 0 AND start_time >= ? AND start_time <= ? ORDER BY CASE level WHEN 1 THEN 1 WHEN 0 THEN 2 WHEN 3 THEN 3 WHEN 2 THEN 4 END, start_time ASC"
     )
     .bind(cutoff_timestamp)
-    .bind(now)
+    .bind(future_timestamp)
     .fetch_all(pool.inner())
     .await
     .map_err(|e| e.to_string())?;
