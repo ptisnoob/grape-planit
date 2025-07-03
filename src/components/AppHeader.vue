@@ -12,10 +12,10 @@
         </div>
         <div class="header-right">
             <ThemeToggle />
-            <button class="nav-link settings-btn">
+            <button class="nav-link settings-btn" @click="openSettings">
                 <Icon name="settings" :size="18" />
             </button>
-            <button class="nav-link close-btn" @click="closeApp">
+            <button class="nav-link close-btn" >
                 <Icon name="close" :size="18" />
             </button>
         </div>
@@ -27,7 +27,7 @@ import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ModeToggle from './ModeToggle.vue';
 import ThemeToggle from './ThemeToggle.vue';
-// import { appWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 
 defineProps<{ isVisible: boolean }>();
 
@@ -38,7 +38,7 @@ const emit = defineEmits(['mode-changed']);
 const navs = [
     { path: '/', icon: 'clock-circle' },
     { path: '/list', icon: 'list' },
-    { path: '/calendar', icon: 'calendar' },
+    // { path: '/calendar', icon: 'calendar' },
 ];
 
 const getCurrentNavIndex = () => {
@@ -67,9 +67,15 @@ const handleModeChange = (mode: string) => {
     emit('mode-changed', mode);
 };
 
-const closeApp = () => {
-    // appWindow.close();
+const openSettings = async () => {
+    try {
+        await invoke('show_settings_window');
+    } catch (error) {
+        console.error('Failed to open settings window:', error);
+    }
 };
+
+
 </script>
 
 <style lang="scss" scoped>

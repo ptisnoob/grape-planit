@@ -1,31 +1,18 @@
 <template>
   <div class="theme-toggle">
     <button @click="toggleTheme" class="theme-btn">
-      <Icon :name="themeIcon" :size="18" />
+      <Icon v-if="currentTheme !== 'auto'" :name="getThemeIcon" :size="18" />
+      <span v-else class="auto-theme-text">{{ getThemeIcon }}</span>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { useTheme, type ThemeType } from '@/composables/useTheme'
+import { onMounted } from 'vue'
+import { useTheme } from '@/composables/useTheme'
+import Icon from '@/components/Icon.vue'
 
-const { currentTheme, setTheme, initTheme } = useTheme()
-
-const themes = [
-  { value: 'light' as ThemeType, label: '浅色' },
-  { value: 'dark' as ThemeType, label: '深色' }
-]
-
-const themeIcon = computed(() => {
-  return currentTheme.value === 'dark' ? 'moon' : 'sun';
-});
-
-const toggleTheme = () => {
-  const currentIndex = themes.findIndex(t => t.value === currentTheme.value)
-  const nextIndex = (currentIndex + 1) % themes.length
-  setTheme(themes[nextIndex].value)
-}
+const { initTheme, toggleTheme, getThemeIcon, currentTheme } = useTheme()
 
 onMounted(() => {
   initTheme()
@@ -53,6 +40,13 @@ onMounted(() => {
     background-color: var(--bg-secondary);
     color: var(--text-primary);
   }
+}
+
+.auto-theme-text {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
 }
 
 .theme-options {

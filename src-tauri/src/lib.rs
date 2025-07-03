@@ -8,6 +8,7 @@ use tauri::{Manager, PhysicalPosition};
 pub mod countdown;
 pub mod database;
 pub mod todo;
+pub mod window_commands;
 
 pub use database::{get_migrations, CountdownConfig};
 
@@ -243,6 +244,7 @@ pub fn run() {
             toggle_always_on_top,
             toggle_shadow,
             set_window_position,
+            window_commands::show_settings_window,
             countdown::update_countdown_config,
             countdown::start_countdown_timer,
             database::load_config_from_db,

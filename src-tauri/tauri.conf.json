@@ -23,6 +23,20 @@
         "x": null,
         "y": null,
         "center": false
+      },
+      {
+        "label": "settings",
+        "url": "/settings",
+        "title": "设置",
+        "width": 570,
+        "height": 400,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "transparent": false,
+        "shadow": true,
+        "visible": false,
+        "center": true,
+        "resizable": true
       }
     ],
     "trayIcon": {
