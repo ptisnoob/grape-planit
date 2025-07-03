@@ -16,3 +16,14 @@ export interface Todo {
     // Ui 用的字段，无需存，默认false
     expanded: boolean;
 }
+
+export type TodoVo = {
+    title: string;
+    notes?: string;
+    category?: string;
+    // 0、重要不紧急 1、重要且紧急 2、不重要不紧急 3、不重要但紧急
+    level: number;
+    cycle: 'one' | 'day' | 'week' | 'month' | 'year';
+    start_time: string;
+    end_time?: string;
+}

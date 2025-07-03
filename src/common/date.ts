@@ -272,6 +272,16 @@ export class GDate {
     static fromString(dateString: string): GDate {
         return new GDate(dateString);
     }
+
+    /**
+     * 获取中文格式的详细时间字符串
+     * 格式：现在是2025年7月3日16:18，周四
+     */
+    toChineseString(): string {
+        const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+        const weekDay = weekDays[this.getWeekDay()];
+        return `${this.getYear()}年${this.getMonth()}月${this.getDay()}日${this.getHours()}:${String(this.getMinutes()).padStart(2, '0')}，周${weekDay}`;
+    }
 }
 
 // 默认导出

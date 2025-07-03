@@ -19,6 +19,8 @@ export default defineConfig(async () => ({
       '@': path.resolve(__dirname, './src'), // 这里配置 @ 为 src 目录
     },
   },
+  // 环境变量前缀配置，只有以这些前缀开头的变量才会暴露给客户端代码
+  envPrefix: ['VITE_', 'TAURI_ENV_*'],
   server: {
     port: 0,
     strictPort: false,
