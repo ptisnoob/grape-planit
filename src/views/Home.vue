@@ -12,11 +12,13 @@ import { useRouter } from 'vue-router'
 import DefaultTime from '@/components/DefaultTime.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import { useTheme } from '@/composables/useTheme'
+import { useAppStore } from '@/store/app'
 import { WindowSettings } from '@/model/settings'
 
 const isHeaderVisible = ref(false)
 const { initTheme } = useTheme()
 const router = useRouter()
+const appStore = useAppStore()
 
 const showHeader = () => {
   isHeaderVisible.value = true
@@ -79,8 +81,11 @@ onMounted(async () => {
   // 加载其他窗口设置
   await loadWindowSettings()
   
-  // 检查启动设置
-  await checkStartupSettings()
+  // 只在第一次启动时检查启动设置
+  if (!appStore.hasCheckedStartupSettings) {
+    await checkStartupSettings()
+    appStore.setStartupSettingsChecked(true)
+  }
 })
 
 onUnmounted(() => {

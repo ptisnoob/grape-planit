@@ -10,6 +10,8 @@ export interface CountdownConfig {
     customCountdown: CustomCountdown
     showSeconds: boolean
     timeDisplayMode: string
+    finalCountdownMinutes: number  // 进入最后倒计时的分钟数
+    endStateKeepMinutes: number    // 结束状态保持的分钟数
 }
 
 export interface CountdownData {

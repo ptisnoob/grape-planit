@@ -13,7 +13,10 @@
           @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPress" @mouseleave="cancelLongPress"
           @click="handleClick(item)">
           <div class="item-header">
-            <span class="item-title">{{ item.title }}</span>
+            <div class="title-with-level">
+              <div class="level-color-block" :class="getLevelClass(item.level)" :title="getLevelText(item.level)"></div>
+              <span class="item-title">{{ item.title }}</span>
+            </div>
             <span class="item-due-date" :class="getDueDateClass(item.startTime)">{{ getDueDateText(item.startTime)
               }}</span>
           </div>
@@ -163,8 +166,13 @@ const getDueDateText = (startTime: number) => {
 
   const dueDate = new GDate(startTime);
   const today = new GDate();
-  const diffDays = Math.ceil((dueDate.getTime() - today.getStartOfDay().getTime()) / (1000 * 60 * 60 * 24));
-
+  
+  // 使用日期的开始时间进行比较，确保计算准确
+  const dueDateStart = dueDate.getStartOfDay();
+  const todayStart = today.getStartOfDay();
+  
+  const diffDays = Math.round((dueDateStart.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
+  
   if (diffDays < 0) {
     const overdueDays = Math.abs(diffDays);
     return `已逾期 ${overdueDays} 天`;
@@ -181,13 +189,40 @@ const getDueDateText = (startTime: number) => {
   }
 };
 
+// 获取优先级文本
+const getLevelText = (level: number) => {
+  switch (level) {
+    case 0: return '重要不紧急';
+    case 1: return '重要且紧急';
+    case 2: return '不重要不紧急';
+    case 3: return '不重要但紧急';
+    default: return '未分类';
+  }
+};
+
+// 获取优先级样式类名
+const getLevelClass = (level: number) => {
+  switch (level) {
+    case 0: return 'level-important-not-urgent';
+    case 1: return 'level-important-urgent';
+    case 2: return 'level-not-important-not-urgent';
+    case 3: return 'level-not-important-urgent';
+    default: return 'level-uncategorized';
+  }
+};
+
 // 获取截止时间样式类名
 const getDueDateClass = (startTime: number) => {
   if (!startTime) return 'due-date-none';
 
   const dueDate = new GDate(startTime);
   const today = new GDate();
-  const diffDays = Math.ceil((dueDate.getTime() - today.getStartOfDay().getTime()) / (1000 * 60 * 60 * 24));
+  
+  // 使用日期的开始时间进行比较，确保计算准确
+  const dueDateStart = dueDate.getStartOfDay();
+  const todayStart = today.getStartOfDay();
+  
+  const diffDays = Math.round((dueDateStart.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {
     return 'due-date-overdue';
@@ -339,7 +374,7 @@ const onMouseUp = async () => {
 }
 
 .list-container {
-  padding: 20px;
+  padding: 5px 20px;
   overflow-y: auto;
   height: 100%;
   /* 优化滚动条样式 */
@@ -398,7 +433,64 @@ const onMouseUp = async () => {
 .item-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-weight: bold;
+}
+
+.title-with-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.level-color-block {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  cursor: help;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* 优先级颜色块样式 */
+.level-important-urgent {
+  background: var(--level-important-urgent-color, #ff4757);
+  box-shadow: 0 0 8px rgba(255, 71, 87, 0.4);
+}
+
+.level-important-not-urgent {
+  background: var(--level-important-not-urgent-color, #ffa726);
+  box-shadow: 0 0 8px rgba(255, 167, 38, 0.3);
+}
+
+.level-not-important-urgent {
+  background: var(--level-not-important-urgent-color, #ffca28);
+  box-shadow: 0 0 8px rgba(255, 202, 40, 0.3);
+}
+
+.level-not-important-not-urgent {
+  background: var(--level-not-important-not-urgent-color, #66bb6a);
+  box-shadow: 0 0 8px rgba(102, 187, 106, 0.3);
+}
+
+.level-uncategorized {
+  background: var(--level-uncategorized-color, #bdbdbd);
+  box-shadow: 0 0 8px rgba(189, 189, 189, 0.2);
+}
+
+/* 颜色块悬停效果 */
+.level-color-block:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.3);
+}
+
+.item-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item-due-date {
@@ -560,7 +652,7 @@ const onMouseUp = async () => {
 .delete-zone.is-active {
   background: linear-gradient(to right, rgba(255, 77, 79, 0.9), rgba(255, 77, 79, 0.3));
   border-right: 3px solid rgba(255, 255, 255, 0.8);
-  animation: shake 0.5s ease-in-out infinite;
+  /* animation: shake 0.5s ease-in-out infinite; */
   width: 35%;
   /* 激活时扩展宽度 */
 }

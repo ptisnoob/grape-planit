@@ -22,6 +22,8 @@
             <div class="content-area">
                 <!-- 根据激活菜单显示对应组件 -->
                 <GeneralSettings v-if="activeMenu === 'general'" />
+                <TimeSettings v-else-if="activeMenu === 'time'" />
+                <TodoSettings v-else-if="activeMenu === 'todo'" />
                 <AISettings v-else-if="activeMenu === 'ai'" />
                 
                 <!-- 其他菜单的空内容 -->
@@ -37,7 +39,9 @@
 import { onMounted, ref, computed } from 'vue';
 import { useTheme } from '@/composables/useTheme';
 import GeneralSettings from './components/GeneralSettings.vue';
+import TimeSettings from './components/TimeSettings.vue';
 import AISettings from './components/AISettings.vue';
+import TodoSettings from './components/TodoSettings.vue';
 
 const { initTheme } = useTheme();
 

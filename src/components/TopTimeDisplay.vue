@@ -18,10 +18,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
 import { useTime, useCountdown } from '@/composables/useTime'
@@ -36,10 +36,15 @@ interface CountdownItem {
 }
 
 const router = useRouter()
+const route = useRoute()
 const modeStore = useModeStore()
 
 const countdowns = ref<CountdownItem[]>([])
 const totalItems = computed(() => 1 + countdowns.value.length) // 1个当前时间 + 倒计时数量
+
+// 记录用户最后手动操作的时间，用于避免自动跳转干扰用户操作
+const lastUserActionTime = ref(0)
+const USER_ACTION_COOLDOWN = 30000 // 30秒内不进行自动跳转
 
 let unlistenCountdown: (() => void) | null = null
 
@@ -79,14 +84,22 @@ const setupCountdownListener = async () => {
         const isNowInFinalCountdown = newData.status === 'running' && newData.timestamp <= 60
 
         if (!wasInFinalCountdown && isNowInFinalCountdown) {
-          // 自动切换到对应的倒计时页面
-          console.log(`倒计时${newData.mode}进入最终阶段，自动切换页面`)
-          if (newData.mode === 'workEnd') {
-            modeStore.switchMode('workEnd')
-            router.push('/')
-          } else if (newData.mode === 'custom') {
-            modeStore.switchMode('custom')
-            router.push('/')
+          // 检查是否在用户操作冷却期内
+          const timeSinceLastAction = Date.now() - lastUserActionTime.value
+          const shouldAutoSwitch = timeSinceLastAction > USER_ACTION_COOLDOWN
+          
+          if (shouldAutoSwitch) {
+            // 自动切换到对应的倒计时页面
+            console.log(`倒计时${newData.mode}进入最终阶段，自动切换页面`)
+            if (newData.mode === 'workEnd') {
+              modeStore.switchMode('workEnd')
+              router.push('/')
+            } else if (newData.mode === 'custom') {
+              modeStore.switchMode('custom')
+              router.push('/')
+            }
+          } else {
+            console.log(`倒计时${newData.mode}进入最终阶段，但用户最近有操作，跳过自动切换`)
           }
         }
       } else {
@@ -124,6 +137,14 @@ const navToTime = () => {
   router.push('/')
 }
 
+// 监听路由变化，记录用户手动操作时间
+watch(() => route.path, (newPath, oldPath) => {
+  if (newPath !== oldPath) {
+    lastUserActionTime.value = Date.now()
+    console.log(`用户手动切换页面: ${oldPath} -> ${newPath}，记录操作时间`)
+  }
+})
+
 onMounted(async () => {
   startTimer(updateTimeForTopDisplay)
 
@@ -131,6 +152,9 @@ onMounted(async () => {
   await initCountdowns()
 
   startCarousel()
+  
+  // 初始化用户操作时间
+  lastUserActionTime.value = Date.now()
 })
 
 onUnmounted(() => {

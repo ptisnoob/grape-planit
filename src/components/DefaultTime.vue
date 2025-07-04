@@ -34,7 +34,7 @@
         </div>
 
         <!-- 最后倒计时效果 -->
-        <div class="final-countdown-container" v-if="shouldShowFinalCountdown">
+        <div class="final-countdown-container" v-if="shouldShowFinalCountdown" @click="handleGotIt">
             <div :key="finalCountdownNumber" class="final-countdown-number animate__animated animate__pulse">
                 {{ finalCountdownNumber }}
             </div>
@@ -101,6 +101,9 @@ const beforeTime = ref(60)
 
 // 最后倒计时状态
 const isInFinalCountdown = ref(false)
+// 结束状态相关
+const isInEndState = ref(false)
+const endStateTimer = ref<NodeJS.Timeout | null>(null)
 
 // 事件监听器
 let unlistenCountdown: (() => void) | null = null
@@ -118,7 +121,7 @@ const displayTime = computed(() => {
                 return '下班'
             }
         }
-        
+
         // 如果倒计时正在运行且有时间戳
         if (countdownData.value.timestamp > 0) {
             const totalSeconds = countdownData.value.timestamp
@@ -133,7 +136,7 @@ const displayTime = computed(() => {
                 return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
             }
         }
-        
+
         // 其他情况（如未设置目标时间）
         return '--:--'
     }
@@ -190,12 +193,14 @@ const toggleTimeDisplay = async () => {
 const loadConfig = async () => {
     try {
         // 优先从数据库加载配置
-        const rustConfig = await loadConfigFromDb() as CountdownConfig 
+        const rustConfig = await loadConfigFromDb() as CountdownConfig
 
         config.value = rustConfig
         showSeconds.value = rustConfig.showSeconds
         workEndTime.value = rustConfig.workEndTime
         customCountdown.value = rustConfig.customCountdown
+        // 更新beforeTime为配置中的值（转换为秒）
+        beforeTime.value = (rustConfig.finalCountdownMinutes || 1) * 60
     } catch (error) {
         console.error('Failed to load config from database:', error)
     }
@@ -234,6 +239,77 @@ const closeSettings = () => {
     showSettings.value = false
 }
 
+// 处理"知道了"按钮点击
+const handleGotIt = async () => {
+    console.log('点击了知道了')
+    // 如果既不在结束状态也不在最后倒计时阶段，则不处理
+    if (!isInEndState.value && !shouldShowFinalCountdown.value) {
+        return
+    }
+
+    // 清除结束状态定时器
+    if (endStateTimer.value) {
+        clearTimeout(endStateTimer.value)
+        endStateTimer.value = null
+    }
+
+    // 退出结束状态
+    isInEndState.value = false
+    isInFinalCountdown.value = false
+
+    // 如果是下班倒计时结束，切换到下一天的倒计时
+    if (countdownData.value?.mode === 'workEnd' && countdownData.value?.status === 'finished') {
+        try {
+            // 调用后端重置下班倒计时到下一天
+            await invoke('reset_work_end_countdown_to_next_day')
+            console.log('✅ [前端] 下班倒计时已重置到下一天')
+            
+            // 重置前端状态
+            countdownData.value = {
+                mode: 'workEnd',
+                timestamp: 0,
+                target_info: '请设置下班时间',
+                status: 'reset'
+            }
+        } catch (error) {
+            console.error('❌ [前端] 重置下班倒计时失败:', error)
+        }
+    }
+
+    // 如果是自定义倒计时结束，重置倒计时
+    if (countdownData.value?.mode === 'custom' && countdownData.value?.status === 'finished') {
+        try {
+            await invoke('reset_custom_countdown')
+            console.log('✅ [前端] 自定义倒计时已重置')
+            
+            // 重置前端状态
+            countdownData.value = {
+                mode: 'custom',
+                timestamp: 0,
+                target_info: '请设置目标时间',
+                status: 'reset'
+            }
+        } catch (error) {
+            console.error('❌ [前端] 重置自定义倒计时失败:', error)
+        }
+    }
+}
+
+// 开始结束状态保持定时器
+const startEndStateTimer = () => {
+    if (!config.value) return
+
+    const keepMinutes = config.value.endStateKeepMinutes || 5
+    const keepMilliseconds = keepMinutes * 60 * 1000
+
+    console.log(`🕐 [前端] 开始结束状态保持定时器，将保持 ${keepMinutes} 分钟`)
+
+    endStateTimer.value = setTimeout(() => {
+        console.log('⏰ [前端] 结束状态保持时间到，自动退出结束状态')
+        handleGotIt()
+    }, keepMilliseconds)
+}
+
 // 设置倒计时事件监听
 const setupCountdownListener = async () => {
     try {
@@ -241,6 +317,14 @@ const setupCountdownListener = async () => {
             const newData = event.payload as CountdownData
             const wasInFinalCountdown = shouldShowFinalCountdown.value
             const oldData = countdownData.value
+            
+            // 如果当前处于结束状态，忽略后端的倒计时更新
+            // 这样可以避免重置后立即被后端数据覆盖
+            if (isInEndState.value) {
+                console.log('🚫 [前端] 当前处于结束状态，忽略倒计时更新')
+                return
+            }
+            
             countdownData.value = newData
 
             // 检查是否刚进入最后倒计时阶段
@@ -265,8 +349,12 @@ const setupCountdownListener = async () => {
             }
 
             // 检查是否倒计时结束
-            if (newData.status === 'finished') {
+            if (newData.status === 'finished' && oldData?.status !== 'finished') {
                 console.log('倒计时结束！')
+                // 进入结束状态
+                isInEndState.value = true
+                // 开始结束状态保持定时器
+                startEndStateTimer()
                 // 这里可以添加结束音效或其他效果
             }
         })
@@ -304,6 +392,11 @@ onUnmounted(() => {
     stopTimer();
     if (unlistenCountdown) {
         unlistenCountdown();
+    }
+    // 清理结束状态定时器
+    if (endStateTimer.value) {
+        clearTimeout(endStateTimer.value);
+        endStateTimer.value = null;
     }
 });
 </script>
@@ -486,6 +579,7 @@ onUnmounted(() => {
     z-index: 99;
     background: rgba(0, 0, 0, 0.9);
     overflow: hidden;
+    cursor: pointer;
 }
 
 .final-countdown-number {
@@ -494,6 +588,7 @@ onUnmounted(() => {
     color: #ffffff;
     text-align: center;
     text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+    user-select: none;
 }
 
 @media screen and (max-width: 1024px) {
@@ -505,6 +600,53 @@ onUnmounted(() => {
 @media screen and (max-width: 768px) {
     .final-countdown-number {
         font-size: 120px;
+    }
+}
+
+/* 结束状态样式 */
+.end-state-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 10;
+}
+
+.end-message {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-color);
+    text-align: center;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 12px 20px;
+    border-radius: 8px;
+    user-select: none;
+}
+
+.end-message:hover {
+    color: var(--accent-color);
+    transform: scale(1.05);
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.end-message:active {
+    transform: scale(1.02);
+    color: var(--accent-color-hover, var(--accent-color));
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .end-message {
+        font-size: 20px;
+        padding: 10px 16px;
     }
 }
 </style>

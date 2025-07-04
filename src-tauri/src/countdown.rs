@@ -1,4 +1,4 @@
-use crate::database::{self, CountdownConfig, save_countdown_record};
+use crate::database::{CountdownConfig, save_countdown_record};
 use chrono::{DateTime, Local, NaiveTime, TimeZone};
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -42,6 +42,29 @@ pub async fn calculate_work_end_countdown(pool: &SqlitePool) -> Option<Countdown
     
     if config.work_end_time.is_empty() {
         return None;
+    }
+    
+    // 检查今天是否有重置记录
+    let today_start = Local::now().date_naive().and_hms_opt(0, 0, 0).unwrap();
+    let today_start_str = today_start.format("%Y-%m-%d %H:%M:%S").to_string();
+    
+    let reset_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM countdown_records WHERE mode = 'workEnd_reset' AND created_at >= ?"
+    )
+    .bind(today_start_str)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    
+    // 如果今天有重置记录，返回重置状态
+    if reset_count > 0 {
+        println!("🔄 [Rust] 检测到今天有下班倒计时重置记录，返回重置状态");
+        return Some(CountdownData {
+            mode: "workEnd".to_string(),
+            timestamp: 0,
+            target_info: "已重置到明天".to_string(),
+            status: "reset".to_string(),
+        });
     }
     
     let now = Local::now();
@@ -255,5 +278,94 @@ pub async fn start_countdown_timer(
         }
     });
 
+    Ok(())
+}
+
+// 重置下班倒计时到下一天
+#[tauri::command]
+pub async fn reset_work_end_countdown_to_next_day(
+    pool: State<'_, SqlitePool>,
+) -> Result<(), String> {
+    println!("🔄 [Rust] reset_work_end_countdown_to_next_day 开始执行");
+    
+    // 加载当前配置
+    let config = match crate::config::load_countdown_config_from_db_internal(pool.inner()).await {
+        Ok(config) => config,
+        Err(e) => {
+            println!("❌ [Rust] 无法加载配置: {}", e);
+            return Err(format!("无法加载配置: {}", e));
+        }
+    };
+    
+    // 如果有下班时间配置，将其推迟到明天
+    if !config.work_end_time.is_empty() {
+        // 解析当前下班时间
+        if let Ok(work_time) = chrono::NaiveTime::parse_from_str(&config.work_end_time, "%H:%M") {
+            let now = chrono::Local::now();
+            let tomorrow = now.date_naive() + chrono::Duration::days(1);
+            let tomorrow_work_end = tomorrow.and_time(work_time);
+            
+            println!("🔄 [Rust] 将下班时间从今天 {} 推迟到明天 {}", 
+                config.work_end_time, 
+                tomorrow_work_end.format("%Y-%m-%d %H:%M:%S")
+            );
+            
+            // 这里我们不修改配置中的时间，而是通过其他方式标记重置
+            // 可以考虑添加一个重置标记或者修改状态
+        }
+    }
+    
+    // 记录重置事件到数据库
+    let _ = save_countdown_record(
+        pool.clone(),
+        "workEnd_reset".to_string(),
+        Some(format!("重置到下一天: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))),
+        None,
+    )
+    .await;
+    
+    println!("✅ [Rust] 下班倒计时重置完成");
+    Ok(())
+}
+
+// 重置自定义倒计时
+#[tauri::command]
+pub async fn reset_custom_countdown(
+    pool: State<'_, SqlitePool>,
+) -> Result<(), String> {
+    println!("🔄 [Rust] reset_custom_countdown 开始执行");
+    
+    // 加载当前配置
+    let mut config = match crate::config::load_countdown_config_from_db_internal(pool.inner()).await {
+        Ok(config) => config,
+        Err(e) => {
+            println!("❌ [Rust] 无法加载配置: {}", e);
+            return Err(format!("无法加载配置: {}", e));
+        }
+    };
+    
+    // 清空自定义倒计时目标
+    if !config.custom_countdown.target.is_empty() {
+        println!("🔄 [Rust] 清空自定义倒计时目标: {}", config.custom_countdown.target);
+        config.custom_countdown.target = String::new();
+        config.custom_countdown.name = "自定义事件".to_string();
+        
+        // 保存更新后的配置
+        if let Err(e) = crate::config::save_countdown_config_to_db(pool.clone(), config).await {
+            println!("❌ [Rust] 保存配置失败: {}", e);
+            return Err(format!("保存配置失败: {}", e));
+        }
+    }
+    
+    // 记录重置事件到数据库
+    let _ = save_countdown_record(
+        pool.clone(),
+        "custom_reset".to_string(),
+        Some(format!("重置自定义倒计时: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))),
+        None,
+    )
+    .await;
+    
+    println!("✅ [Rust] 自定义倒计时重置完成");
     Ok(())
 }

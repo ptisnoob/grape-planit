@@ -266,6 +266,20 @@ pub fn run() {
                             settings.accent_color
                         );
                         let _ = main_window.eval(&accent_color_script);
+                        
+                        // 加载并应用TODO颜色设置
+                        if let Ok(todo_colors) = config::load_todo_color_settings_internal(pool_state.inner()).await {
+                            let mut color_script = String::new();
+                            for (level_key, color_value) in todo_colors {
+                                color_script.push_str(&format!(
+                                    "document.documentElement.style.setProperty('--{}-color', '{}');",
+                                    level_key, color_value
+                                ));
+                            }
+                            if !color_script.is_empty() {
+                                let _ = main_window.eval(&color_script);
+                            }
+                        }
                     }
                 }
             });
@@ -294,6 +308,8 @@ pub fn run() {
             window_commands::eval_script_in_main_window,
             countdown::update_countdown_config,
             countdown::start_countdown_timer,
+            countdown::reset_work_end_countdown_to_next_day,
+            countdown::reset_custom_countdown,
             config::load_countdown_config_from_db,
             config::save_countdown_config_to_db,
             database::save_countdown_record,
@@ -306,7 +322,10 @@ pub fn run() {
             todo::get_all_todos,
             todo::get_recent_todos,
             todo::update_todo,
-            todo::delete_todo
+            todo::delete_todo,
+            config::load_todo_color_settings,
+            config::save_todo_color_settings,
+            config::apply_todo_colors_to_main_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

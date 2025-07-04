@@ -84,7 +84,18 @@ pub fn get_migrations() -> Vec<Migration> {
             );",
             kind: MigrationKind::Up,
         },
-        // Migration version 6 removed - accent_color column already exists in window_settings table from version 4
+        Migration {
+            version: 6,
+            description: "create_todo_color_settings_table",
+            sql: "CREATE TABLE IF NOT EXISTS todo_color_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                level_key TEXT NOT NULL UNIQUE,
+                color_value TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );",
+            kind: MigrationKind::Up,
+        },
         // Migration version 7 and 8 removed - recent_days and default_startup columns are now included in the initial window_settings table creation
 
     ]
