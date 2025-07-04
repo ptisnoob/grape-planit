@@ -2,20 +2,43 @@
   <div class="ai-settings">
     <div class="settings-section">
       <h3 class="section-title">AI 配置</h3>
+      <ConfigTip 
+        icon="🤖" 
+        title="AI服务配置" 
+        description="配置AI服务的连接信息。API Key用于身份验证，Base URL是服务地址，Model指定使用的AI模型。配置完成后建议先测试连接。" 
+      />
       <div v-if="testResult" class="test-result" :class="{ success: testResult.success, error: !testResult.success }">
         {{ testResult.message }}
       </div>
       <div class="ai-config">
         <div class="input-group">
           <label class="input-label">API Key</label>
+          <ConfigTip 
+            icon="🔑" 
+            title="API密钥" 
+            description="从AI服务提供商获取的身份验证密钥，用于访问AI服务。请妥善保管，不要泄露给他人。" 
+            :show="!aiSettings.apiKey" 
+          />
           <input type="password" v-model="aiSettings.apiKey" placeholder="请输入 API Key" class="config-input">
         </div>
         <div class="input-group">
           <label class="input-label">Base URL</label>
+          <ConfigTip 
+            icon="🌐" 
+            title="服务地址" 
+            description="AI服务的API基础地址。OpenAI官方地址为 https://api.openai.com/v1，如使用代理服务请填写相应地址。" 
+            :show="!aiSettings.baseUrl || aiSettings.baseUrl === 'https://api.openai.com/v1'" 
+          />
           <input type="text" v-model="aiSettings.baseUrl" placeholder="https://api.openai.com/v1" class="config-input">
         </div>
         <div class="input-group">
           <label class="input-label">模型</label>
+          <ConfigTip 
+            icon="🧠" 
+            title="AI模型" 
+            description="指定要使用的AI模型。常用模型：gpt-3.5-turbo（快速且经济）、gpt-4（更强大但较慢）。" 
+            :show="!aiSettings.model || aiSettings.model === 'gpt-3.5-turbo'" 
+          />
           <input type="text" v-model="aiSettings.model" placeholder="gpt-3.5-turbo" class="config-input">
         </div>
         <div class="ai-actions">
@@ -35,6 +58,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import defaultAIService from '@/common/ai'
+import ConfigTip from '@/components/ConfigTip.vue'
 
 // AI配置状态
 const aiSettings = ref({

@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { useRouter } from 'vue-router'
 import DefaultTime from '@/components/DefaultTime.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import { useTheme } from '@/composables/useTheme'
@@ -15,6 +16,7 @@ import { WindowSettings } from '@/model/settings'
 
 const isHeaderVisible = ref(false)
 const { initTheme } = useTheme()
+const router = useRouter()
 
 const showHeader = () => {
   isHeaderVisible.value = true
@@ -22,6 +24,33 @@ const showHeader = () => {
 
 const hideHeader = () => {
   isHeaderVisible.value = false
+}
+
+// 检查启动设置并决定显示内容
+const checkStartupSettings = async () => {
+  try {
+    const settings = await invoke<WindowSettings>('load_window_settings_from_db')
+    
+    if (settings.default_startup === 'todo') {
+      // 直接跳转到todo列表
+      router.push('/list')
+      return
+    } else if (settings.default_startup === 'auto') {
+      // 检查是否有最近的待办事项
+      const recentDays = settings.recent_days || 5
+      const todos = await invoke('get_recent_todos', { days: recentDays })
+      
+      if (Array.isArray(todos) && todos.length > 0) {
+        // 有最近的待办事项，跳转到todo列表
+        router.push('/list')
+        return
+      }
+    }
+    // 默认显示时间页面（default_startup === 'home' 或 auto模式下没有待办事项）
+  } catch (error) {
+    console.error('❌ [前端] 检查启动设置失败:', error)
+    // 出错时默认显示时间页面
+  }
 }
 
 // 加载窗口设置（仅加载主题色，主题由useTheme处理）
@@ -49,6 +78,9 @@ onMounted(async () => {
 
   // 加载其他窗口设置
   await loadWindowSettings()
+  
+  // 检查启动设置
+  await checkStartupSettings()
 })
 
 onUnmounted(() => {

@@ -25,6 +25,7 @@ import { useRouter } from 'vue-router'
 import { CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
 import { useTime, useCountdown } from '@/composables/useTime'
+import { useCarousel } from '@/composables/useCarousel'
 import Close from './Close.vue'
 import ThemeToggle from './ThemeToggle.vue';
 import SettingsBtn from './SettingsBtn.vue'
@@ -38,41 +39,19 @@ const router = useRouter()
 const modeStore = useModeStore()
 
 const countdowns = ref<CountdownItem[]>([])
-const currentIndex = ref(0)
 const totalItems = computed(() => 1 + countdowns.value.length) // 1个当前时间 + 倒计时数量
 
-let carouselTimer: ReturnType<typeof setInterval> | null = null
 let unlistenCountdown: (() => void) | null = null
 
 // 使用时间相关的 composable
 const { currentTimeTextForTop, startTimer, stopTimer, updateTimeForTopDisplay } = useTime()
 const { formatCountdownText } = useCountdown()
 
+// 使用轮播 composable
+const { currentIndex, startCarousel, stopCarousel, restartCarousel } = useCarousel(totalItems, 10000)
+
 // 为了保持兼容性，创建一个别名
 const currentTimeText = currentTimeTextForTop
-
-
-// 轮播控制
-const startCarousel = () => {
-  if (totalItems.value <= 1) {
-    console.log(`轮播未启动：总项目数 ${totalItems.value} <= 1`)
-    return
-  }
-
-  console.log(`启动轮播：总项目数 ${totalItems.value}，当前索引 ${currentIndex.value}`)
-  carouselTimer = setInterval(() => {
-    const newIndex = (currentIndex.value + 1) % totalItems.value
-    // console.log(`轮播切换：${currentIndex.value} -> ${newIndex}`)
-    currentIndex.value = newIndex
-  }, 10000) // 每10秒切换一次
-}
-
-const stopCarousel = () => {
-  if (carouselTimer) {
-    clearInterval(carouselTimer)
-    carouselTimer = null
-  }
-}
 
 
 
@@ -123,8 +102,7 @@ const setupCountdownListener = async () => {
       const currentCount = countdowns.value.length
       if (currentCount !== previousCount) {
         console.log(`倒计时数量变化：${previousCount} -> ${currentCount}，重新启动轮播`)
-        stopCarousel()
-        startCarousel()
+        restartCarousel()
       }
     })
   } catch (error) {

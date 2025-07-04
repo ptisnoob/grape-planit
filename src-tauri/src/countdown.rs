@@ -90,7 +90,16 @@ pub async fn calculate_custom_countdown(pool: &SqlitePool) -> Option<CountdownDa
         let total_seconds = diff.num_seconds();
         
         if total_seconds <= 0 {
-            None // 倒计时结束，不显示
+            // 倒计时结束，返回finished状态
+            Some(CountdownData {
+                mode: "custom".to_string(),
+                timestamp: 0,
+                target_info: format!(
+                    "目标时间：{}",
+                    target_local.format("%Y-%m-%d %H:%M:%S")
+                ),
+                status: "finished".to_string(),
+            })
         } else {
             Some(CountdownData {
                 mode: "custom".to_string(),
@@ -203,14 +212,45 @@ pub async fn start_countdown_timer(
         loop {
             interval.tick().await;
 
-            // 获取所有有效的倒计时
-            let countdowns = get_all_countdowns(&pool_clone).await;
+            // 获取当前配置以确定显示模式
+            let config = crate::config::load_countdown_config_from_db_internal(&pool_clone).await
+                .unwrap_or_else(|_| crate::config::get_default_countdown_config());
             
-            // 为每个倒计时发送事件
-            for countdown_data in countdowns {
-                if let Err(e) = app_handle.emit("countdown-update", countdown_data) {
-                    eprintln!("Failed to emit countdown-update event: {}", e);
+            // 根据当前显示模式发送对应的倒计时数据
+            let countdown_data = match config.time_display_mode.as_str() {
+                "workEnd" => {
+                    if let Some(countdown) = calculate_work_end_countdown(&pool_clone).await {
+                        countdown
+                    } else {
+                        CountdownData {
+                            mode: "workEnd".to_string(),
+                            timestamp: 0,
+                            target_info: "请设置下班时间".to_string(),
+                            status: "reset".to_string(),
+                        }
+                    }
                 }
+                "custom" => {
+                    if let Some(countdown) = calculate_custom_countdown(&pool_clone).await {
+                        countdown
+                    } else {
+                        CountdownData {
+                            mode: "custom".to_string(),
+                            timestamp: 0,
+                            target_info: "请设置目标时间".to_string(),
+                            status: "reset".to_string(),
+                        }
+                    }
+                }
+                _ => {
+                    // current模式不需要发送倒计时数据
+                    continue;
+                }
+            };
+            
+            // 发送倒计时更新事件
+            if let Err(e) = app_handle.emit("countdown-update", countdown_data) {
+                eprintln!("Failed to emit countdown-update event: {}", e);
             }
         }
     });

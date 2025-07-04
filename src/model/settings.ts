@@ -5,6 +5,8 @@ export interface WindowSettings {
   opacity: number
   always_on_top: boolean
   accent_color: string
+  recent_days: number
+  default_startup: string
 }
 
 // AI设置类型定义

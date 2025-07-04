@@ -35,6 +35,8 @@ pub struct WindowSettings {
     pub opacity: f64,
     pub always_on_top: bool,
     pub accent_color: String, // 新增主题色配置
+    pub recent_days: i64,
+    pub default_startup: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
@@ -64,6 +66,8 @@ pub fn get_default_window_settings() -> WindowSettings {
         opacity: 0.35,
         always_on_top: true,
         accent_color: "#007bff".to_string(), // 默认蓝色主题
+        recent_days: 5,
+        default_startup: "auto".to_string(),
     }
 }
 
@@ -139,7 +143,7 @@ pub async fn load_window_settings_from_db_internal(
     pool: &SqlitePool,
 ) -> Result<WindowSettings, sqlx::Error> {
     let result = sqlx::query_as::<_, WindowSettings>(
-        "SELECT theme, window_position, opacity, always_on_top, accent_color FROM window_settings ORDER BY id DESC LIMIT 1",
+        "SELECT theme, window_position, opacity, always_on_top, accent_color, recent_days, default_startup FROM window_settings ORDER BY id DESC LIMIT 1",
     )
     .fetch_optional(pool)
     .await?;
@@ -163,12 +167,14 @@ pub async fn save_window_settings_to_db(pool: State<'_, SqlitePool>, settings: W
             e.to_string()
         })?;
     
-    sqlx::query("INSERT INTO window_settings (theme, window_position, opacity, always_on_top, accent_color) VALUES (?, ?, ?, ?, ?)")
+    sqlx::query("INSERT INTO window_settings (theme, window_position, opacity, always_on_top, accent_color, recent_days, default_startup) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .bind(&settings.theme)
         .bind(&settings.window_position)
         .bind(settings.opacity)
         .bind(settings.always_on_top)
         .bind(&settings.accent_color)
+        .bind(settings.recent_days)
+        .bind(&settings.default_startup)
         .execute(pool.inner())
         .await
         .map_err(|e| {

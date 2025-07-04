@@ -109,16 +109,32 @@ let unlistenCountdown: (() => void) | null = null
 const displayTime = computed(() => {
     if (modeStore.currentMode === 'current') {
         return showSeconds.value ? currentTime.value : currentTime.value.slice(0, 5)
-    } else if (countdownData.value && countdownData.value.timestamp > 0) {
-        const totalSeconds = countdownData.value.timestamp
-
-        if (showSeconds.value) {
-            return totalSeconds
-        } else {
-            // 使用composable中的格式化方法
-            return formatCountdownToHMS(totalSeconds)
-        }
     } else if (countdownData.value) {
+        // 如果倒计时已结束（finished状态）
+        if (countdownData.value.status === 'finished') {
+            if (countdownData.value.mode === 'custom') {
+                return '已结束'
+            } else if (countdownData.value.mode === 'workEnd') {
+                return '下班'
+            }
+        }
+        
+        // 如果倒计时正在运行且有时间戳
+        if (countdownData.value.timestamp > 0) {
+            const totalSeconds = countdownData.value.timestamp
+
+            if (showSeconds.value) {
+                // 显示秒数时，使用完整的时:分:秒格式
+                return formatCountdownToHMS(totalSeconds)
+            } else {
+                // 不显示秒数时，使用时:分格式
+                const hours = Math.floor(totalSeconds / 3600)
+                const minutes = Math.floor((totalSeconds % 3600) / 60)
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+            }
+        }
+        
+        // 其他情况（如未设置目标时间）
         return '--:--'
     }
     return currentTime.value
@@ -174,7 +190,7 @@ const toggleTimeDisplay = async () => {
 const loadConfig = async () => {
     try {
         // 优先从数据库加载配置
-        const rustConfig = await loadConfigFromDb()
+        const rustConfig = await loadConfigFromDb() as CountdownConfig 
 
         config.value = rustConfig
         showSeconds.value = rustConfig.showSeconds
@@ -233,8 +249,9 @@ const setupCountdownListener = async () => {
                 // 这里可以添加音效或其他效果
                 console.log('进入最后倒计时阶段！')
 
-                // 自动切换到对应的倒计时模式
-                if (newData.mode && modeStore.currentMode !== newData.mode) {
+                // 只有在当前模式为'current'时才自动切换到对应的倒计时模式
+                // 这样可以避免干扰用户的手动模式选择
+                if (newData.mode && modeStore.currentMode === 'current' && newData.mode !== 'current') {
                     console.log(`自动切换模式从 ${modeStore.currentMode} 到 ${newData.mode}`)
                     modeStore.switchMode(newData.mode)
                 }

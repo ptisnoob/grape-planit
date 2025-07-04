@@ -30,7 +30,6 @@
   --shadow: rgba(0, 0, 0, 0.3);
 }
 
-/* auto主题已移除，因为auto模式只是跟随系统使用深色或浅色模式，不是单独的主题 */
 
 /* 基础样式应用主题变量 */
 body {
@@ -38,6 +37,15 @@ body {
   color: var(--text-primary);
   transition: background-color var(--transition-normal), color var(--transition-normal);
   backdrop-filter: blur(10px);
+}
+
+/* 设置页面专用样式 - 不透明背景 */
+.settings-page {
+  background-color: rgba(255, 255, 255, 1) !important;
+}
+
+[data-theme="dark"] .settings-page {
+  background-color: rgba(26, 26, 26, 1) !important;
 }
 
 /* 悬浮效果应用到#app容器 */

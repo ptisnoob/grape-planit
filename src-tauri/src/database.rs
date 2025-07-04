@@ -64,6 +64,8 @@ pub fn get_migrations() -> Vec<Migration> {
                 opacity REAL NOT NULL DEFAULT 0.35,
                 always_on_top BOOLEAN NOT NULL DEFAULT 1,
                 accent_color TEXT NOT NULL DEFAULT '#007bff',
+                recent_days INTEGER NOT NULL DEFAULT 5,
+                default_startup TEXT NOT NULL DEFAULT 'auto',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );",
@@ -83,6 +85,7 @@ pub fn get_migrations() -> Vec<Migration> {
             kind: MigrationKind::Up,
         },
         // Migration version 6 removed - accent_color column already exists in window_settings table from version 4
+        // Migration version 7 and 8 removed - recent_days and default_startup columns are now included in the initial window_settings table creation
 
     ]
 }

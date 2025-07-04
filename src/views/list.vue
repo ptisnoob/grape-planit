@@ -64,9 +64,13 @@ const filterDays = ref(5); // 默认显示最近5天
 
 const loadTodos = async () => {
   try {
+    // 从数据库加载窗口设置，获取recent_days配置
+    const settings = await invoke('load_window_settings_from_db');
+    filterDays.value = (settings as any).recent_days || 5;
+    
     const todos = await invoke('get_recent_todos', { days: filterDays.value });
     list.value = (todos as Todo[]).map(todo => ({ ...todo, expanded: false }));
-    console.log('Loaded todos:', todos);
+    console.log('Loaded todos with recent days:', filterDays.value, todos);
   } catch (error) {
     console.error('Failed to load todos:', error);
   }

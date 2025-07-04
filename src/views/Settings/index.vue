@@ -1,5 +1,5 @@
 <template>
-    <div class="settings-container theme-transition">
+    <div class="settings-container settings-page theme-transition">
         <!-- 左侧导航菜单 -->
         <div class="settings-sidebar">
             <div class="sidebar-content">
@@ -145,6 +145,30 @@ onMounted(() => {
         flex: 1;
         padding: 20px;
         overflow-y: auto;
+        
+        /* 自定义滚动条样式 */
+        &::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        &::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+        
+        &::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+            transition: background var(--transition-fast);
+        }
+        
+        &::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-color);
+        }
+        
+        /* Firefox 滚动条样式 */
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-color) var(--bg-secondary);
     }
 
     .empty-content {
