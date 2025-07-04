@@ -1,8 +1,12 @@
 /* 主题变量定义 */
 :root {
+  /* 透明度变量 */
+  --bg-primary-opacity: 0.35;
+  --bg-secondary-opacity: 0.35;
+  
   /* 浅色主题 */
-  --bg-primary: rgba(255, 255, 255, 0.35);
-  --bg-secondary: rgba(248, 249, 250, 0.35);
+  --bg-primary: rgba(255, 255, 255, var(--bg-primary-opacity));
+  --bg-secondary: rgba(248, 249, 250, var(--bg-secondary-opacity));
   --text-primary: #333333;
   --text-secondary: #666666;
   --border-color: #e0e0e0;
@@ -17,8 +21,8 @@
 
 /* 深色主题 */
 [data-theme="dark"] {
-  --bg-primary: rgba(26, 26, 26, 0.35);
-  --bg-secondary: rgba(45, 45, 45, 0.35);
+  --bg-primary: rgba(26, 26, 26, var(--bg-primary-opacity));
+  --bg-secondary: rgba(45, 45, 45, var(--bg-secondary-opacity));
   --text-primary: #ffffff;
   --text-secondary: #cccccc;
   --border-color: #404040;
@@ -26,28 +30,7 @@
   --shadow: rgba(0, 0, 0, 0.3);
 }
 
-/* 自动主题（跟随系统） */
-[data-theme="auto"] {
-  --bg-primary: rgba(255, 255, 255, 0.35);
-  --bg-secondary: rgba(248, 249, 250, 0.35);
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --border-color: #e0e0e0;
-  --accent-color: #007bff;
-  --shadow: rgba(0, 0, 0, 0.1);
-}
-
-@media (prefers-color-scheme: dark) {
-  [data-theme="auto"] {
-    --bg-primary: rgba(26, 26, 26, 0.35);
-    --bg-secondary: rgba(45, 45, 45, 0.35);
-    --text-primary: #ffffff;
-    --text-secondary: #cccccc;
-    --border-color: #404040;
-    --accent-color: #4dabf7;
-    --shadow: rgba(0, 0, 0, 0.3);
-  }
-}
+/* auto主题已移除，因为auto模式只是跟随系统使用深色或浅色模式，不是单独的主题 */
 
 /* 基础样式应用主题变量 */
 body {
@@ -68,10 +51,7 @@ body {
   background-color: rgba(26, 26, 26, 0.9) !important;
 }
 
-/* 自动主题悬浮效果 */
-[data-theme="auto"] #app:hover {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-}
+/* auto主题悬浮效果已移除，因为auto模式会自动应用对应的light或dark主题样式 */
 
 
 /* 动画类 */

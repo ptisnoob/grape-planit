@@ -1,4 +1,6 @@
 import { ref, computed } from 'vue'
+import { invoke } from '@tauri-apps/api/core';
+import { WindowSettings } from '../model/settings'
 
 export type ThemeType = 'light' | 'dark' | 'auto'
 
@@ -11,13 +13,13 @@ const getSystemTheme = (): 'light' | 'dark' => {
 
 const applyTheme = (theme: ThemeType) => {
   let actualTheme: 'light' | 'dark'
-  
+
   if (theme === 'auto') {
     actualTheme = getSystemTheme()
   } else {
     actualTheme = theme
   }
-  
+
   document.documentElement.setAttribute('data-theme', actualTheme)
 }
 
@@ -25,7 +27,7 @@ export const useTheme = () => {
   const setTheme = (theme: ThemeType) => {
     currentTheme.value = theme
     applyTheme(theme)
-    localStorage.setItem('theme', theme)
+    // 不再使用localStorage，主题设置由GeneralSettings组件保存到数据库
   }
 
   const toggleTheme = () => {
@@ -35,14 +37,20 @@ export const useTheme = () => {
     setTheme(themes[nextIndex])
   }
 
-  const initTheme = () => {
-    const savedTheme = localStorage.getItem('theme') as ThemeType
-    if (savedTheme && ['light', 'dark', 'auto'].includes(savedTheme)) {
-      setTheme(savedTheme)
-    } else {
+  const initTheme = async () => {
+    try {
+      // 从数据库读取主题设置
+      const settings = await invoke<WindowSettings>('load_window_settings_from_db')
+      if (settings && settings.theme && ['light', 'dark', 'auto'].includes(settings.theme)) {
+        setTheme(settings.theme as ThemeType)
+      } else {
+        setTheme('auto')
+      }
+    } catch (error) {
+      console.error('Failed to load theme from database:', error)
       setTheme('auto')
     }
-    
+
     // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       if (currentTheme.value === 'auto') {

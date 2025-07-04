@@ -42,9 +42,22 @@ li {
     list-style: none;
 }
 
+.fulled {
+    height: 100%;
+}
+
 /* flex布局 */
 .flex {
     display: flex;
+}
+
+.flex-r {
+    display: flex;
+    flex-direction: row;
+}
+
+.flex-1 {
+    flex: 1;
 }
 
 .flex-r-c-c {
@@ -52,4 +65,31 @@ li {
     flex-direction: row;
     align-items: center;
     justify-content: center;
+}
+
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    padding: 6px 10px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+
+    .icon {
+        color: inherit;
+    }
+
+    &.active,
+    &:hover {
+        color: var(--accent-color);
+        background-color: rgba(var(--accent-color-rgb), 0.1);
+        transform: scale(1.1);
+    }
 }

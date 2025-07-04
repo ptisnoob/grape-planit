@@ -1,16 +1,19 @@
 <template>
-  <div class="top-time-display">
-    <div class="time-carousel" :style="{ transform: `translateY(-${currentIndex * 100}%)` }">
+  <div class="top-time-display flex-r">
+    <div class="time-carousel flex-1" :style="{ transform: `translateY(-${currentIndex * 100}%)` }" @click="navToTime">
       <!-- 当前时间 -->
       <div class="time-item current-time">
         <span class="time-text">{{ currentTimeText }}</span>
       </div>
-      
+
       <!-- 倒计时列表 -->
       <div v-for="countdown in countdowns" :key="countdown.id" class="time-item countdown-item">
         <span class="countdown-text">{{ countdown.text }}</span>
       </div>
     </div>
+    <SettingsBtn />
+    <ThemeToggle />
+    <Close />
   </div>
 </template>
 
@@ -21,7 +24,10 @@ import { listen } from '@tauri-apps/api/event'
 import { useRouter } from 'vue-router'
 import { CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
-
+import { useTime, useCountdown } from '@/composables/useTime'
+import Close from './Close.vue'
+import ThemeToggle from './ThemeToggle.vue';
+import SettingsBtn from './SettingsBtn.vue'
 interface CountdownItem {
   id: string
   text: string
@@ -31,51 +37,34 @@ interface CountdownItem {
 const router = useRouter()
 const modeStore = useModeStore()
 
-const currentTime = ref('')
-const currentDate = ref('')
-const currentWeekday = ref('')
 const countdowns = ref<CountdownItem[]>([])
 const currentIndex = ref(0)
 const totalItems = computed(() => 1 + countdowns.value.length) // 1个当前时间 + 倒计时数量
 
-let timer: ReturnType<typeof setInterval> | null = null
 let carouselTimer: ReturnType<typeof setInterval> | null = null
 let unlistenCountdown: (() => void) | null = null
 
-const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+// 使用时间相关的 composable
+const { currentTimeTextForTop, startTimer, stopTimer, updateTimeForTopDisplay } = useTime()
+const { formatCountdownText } = useCountdown()
 
-// 当前时间显示文本
-const currentTimeText = computed(() => {
-  return `${currentTime.value} ${currentDate.value} ${currentWeekday.value}`
-})
+// 为了保持兼容性，创建一个别名
+const currentTimeText = currentTimeTextForTop
 
-// 更新时间
-const updateTime = () => {
-  const now = new Date()
-  
-  // 格式化时间 HH:MM:SS
-  const hours = now.getHours().toString().padStart(2, '0')
-  const minutes = now.getMinutes().toString().padStart(2, '0')
-  const seconds = now.getSeconds().toString().padStart(2, '0')
-  currentTime.value = `${hours}:${minutes}:${seconds}`
-  
-  // 格式化日期 X月X日
-  const month = months[now.getMonth()]
-  const day = now.getDate()
-  currentDate.value = `${month}${day}日`
-  
-  // 格式化星期
-  currentWeekday.value = weekdays[now.getDay()]
-}
 
 // 轮播控制
 const startCarousel = () => {
-  if (totalItems.value <= 1) return
-  
+  if (totalItems.value <= 1) {
+    console.log(`轮播未启动：总项目数 ${totalItems.value} <= 1`)
+    return
+  }
+
+  console.log(`启动轮播：总项目数 ${totalItems.value}，当前索引 ${currentIndex.value}`)
   carouselTimer = setInterval(() => {
-    currentIndex.value = (currentIndex.value + 1) % totalItems.value
-  }, 3000) // 每3秒切换一次
+    const newIndex = (currentIndex.value + 1) % totalItems.value
+    // console.log(`轮播切换：${currentIndex.value} -> ${newIndex}`)
+    currentIndex.value = newIndex
+  }, 10000) // 每10秒切换一次
 }
 
 const stopCarousel = () => {
@@ -85,42 +74,18 @@ const stopCarousel = () => {
   }
 }
 
-// 格式化倒计时文本
-const formatCountdownText = (data: CountdownData): string => {
-  if (data.status === 'finished') {
-    return data.mode === 'workEnd' ? '已到下班时间！' : `${data.target_info}已到时间！`
-  }
-  
-  if (data.status === 'running' && data.timestamp > 0) {
-    const totalSeconds = data.timestamp
-    const hours = Math.floor(totalSeconds / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    const seconds = totalSeconds % 60
-    
-    let timeText = ''
-    if (hours > 0) {
-      timeText = `${hours}小时${minutes}分${seconds}秒`
-    } else if (minutes > 0) {
-      timeText = `${minutes}分${seconds}秒`
-    } else {
-      timeText = `${seconds}秒`
-    }
-    
-    return `距离${data.target_info}还剩${timeText}`
-  }
-  
-  return `${data.target_info}未开始`
-}
+
 
 // 设置倒计时监听
 const setupCountdownListener = async () => {
   try {
     unlistenCountdown = await listen('countdown-update', (event) => {
       const newData = event.payload as CountdownData
-      
+      const previousCount = countdowns.value.length
+
       // 查找是否已存在该倒计时
       const existingIndex = countdowns.value.findIndex(item => item.id === newData.mode)
-      
+
       if (existingIndex >= 0) {
         // 更新现有倒计时
         const oldData = countdowns.value[existingIndex].data
@@ -129,11 +94,11 @@ const setupCountdownListener = async () => {
           text: formatCountdownText(newData),
           data: newData
         }
-        
+
         // 检查是否刚进入最终倒计时阶段
         const wasInFinalCountdown = oldData.status === 'running' && oldData.timestamp <= 60
         const isNowInFinalCountdown = newData.status === 'running' && newData.timestamp <= 60
-        
+
         if (!wasInFinalCountdown && isNowInFinalCountdown) {
           // 自动切换到对应的倒计时页面
           console.log(`倒计时${newData.mode}进入最终阶段，自动切换页面`)
@@ -153,10 +118,14 @@ const setupCountdownListener = async () => {
           data: newData
         })
       }
-      
-      // 重新启动轮播
-      stopCarousel()
-      startCarousel()
+
+      // 只有在倒计时数量发生变化时才重新启动轮播
+      const currentCount = countdowns.value.length
+      if (currentCount !== previousCount) {
+        console.log(`倒计时数量变化：${previousCount} -> ${currentCount}，重新启动轮播`)
+        stopCarousel()
+        startCarousel()
+      }
     })
   } catch (error) {
     console.error('Failed to setup countdown listener:', error)
@@ -173,20 +142,21 @@ const initCountdowns = async () => {
   }
 }
 
+const navToTime = () => {
+  router.push('/')
+}
+
 onMounted(async () => {
-  updateTime()
-  timer = setInterval(updateTime, 1000)
-  
+  startTimer(updateTimeForTopDisplay)
+
   await setupCountdownListener()
   await initCountdowns()
-  
+
   startCarousel()
 })
 
 onUnmounted(() => {
-  if (timer) {
-    clearInterval(timer)
-  }
+  stopTimer()
   stopCarousel()
   if (unlistenCountdown) {
     unlistenCountdown()
@@ -201,13 +171,13 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 40px;
-  background: var(--bg-primary);
+  background: transparent;
   color: var(--text-primary);
   z-index: 50;
   overflow: hidden;
   box-shadow: 0 1px 4px var(--shadow);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border-color);
+  /* backdrop-filter: blur(20px); */
+  /* border-bottom: 1px solid var(--border-color); */
   transition: all var(--transition-normal);
 }
 
@@ -216,15 +186,16 @@ onUnmounted(() => {
   transition: transform 0.5s ease-in-out;
   display: flex;
   flex-direction: column;
+  cursor: pointer;
 }
 
 .time-item {
   height: 40px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex-shrink: 0;
-  padding: 0 20px;
+  padding: 0 10px;
 }
 
 .time-text,
@@ -233,6 +204,7 @@ onUnmounted(() => {
   font-weight: 500;
   text-align: center;
   white-space: nowrap;
+  user-select: none;
 }
 
 .current-time {
@@ -241,7 +213,7 @@ onUnmounted(() => {
 }
 
 .countdown-item {
-  background: var(--bg-secondary);
+  /* background: var(--bg-secondary); */
   color: var(--accent-color);
   font-weight: 600;
   border-left: 3px solid var(--accent-color);
@@ -253,6 +225,7 @@ onUnmounted(() => {
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -263,15 +236,4 @@ onUnmounted(() => {
   animation: slideIn 0.3s ease-out;
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .time-text,
-  .countdown-text {
-    font-size: 12px;
-  }
-  
-  .time-item {
-    padding: 0 15px;
-  }
-}
 </style>

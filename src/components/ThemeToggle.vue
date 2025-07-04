@@ -1,10 +1,8 @@
 <template>
-  <div class="theme-toggle">
-    <button @click="toggleTheme" class="theme-btn">
-      <Icon v-if="currentTheme !== 'auto'" :name="getThemeIcon" :size="18" />
-      <span v-else class="auto-theme-text">{{ getThemeIcon }}</span>
-    </button>
-  </div>
+  <button @click="toggleTheme" class="nav-link theme-btn">
+    <Icon v-if="currentTheme !== 'auto'" :name="getThemeIcon" :size="18" />
+    <span v-else class="auto-theme-text">{{ getThemeIcon }}</span>
+  </button>
 </template>
 
 <script setup lang="ts">

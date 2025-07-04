@@ -61,12 +61,21 @@ import CustomCountdownSettings from './CustomCountdownSettings.vue'
 import { CountdownConfig, CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
 import { useDatabase } from '@/composables/useDatabase'
+import { useTime } from '@/composables/useTime'
 
 
-// 基础时间数据
-const currentTime = ref('')
-const currentDate = ref('')
-const currentWeekday = ref('')
+// 使用时间相关的 composable
+const {
+    currentTime,
+    currentDate,
+    currentWeekday,
+    startTimer,
+    stopTimer,
+    updateTimeForDefaultDisplay,
+    formatCountdownToHMS,
+    calculateNextHoliday: getNextHoliday,
+} = useTime()
+
 const nextHoliday = ref({
     name: '国庆节',
     days: 37
@@ -96,23 +105,18 @@ const isInFinalCountdown = ref(false)
 // 事件监听器
 let unlistenCountdown: (() => void) | null = null
 
-let timer: ReturnType<typeof setInterval> | null = null
-const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
-
 // 计算属性
 const displayTime = computed(() => {
     if (modeStore.currentMode === 'current') {
         return showSeconds.value ? currentTime.value : currentTime.value.slice(0, 5)
     } else if (countdownData.value && countdownData.value.timestamp > 0) {
         const totalSeconds = countdownData.value.timestamp
-        const hours = Math.floor(totalSeconds / 3600)
-        const minutes = Math.floor((totalSeconds % 3600) / 60)
-        const seconds = totalSeconds % 60
 
         if (showSeconds.value) {
             return totalSeconds
         } else {
-            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+            // 使用composable中的格式化方法
+            return formatCountdownToHMS(totalSeconds)
         }
     } else if (countdownData.value) {
         return '--:--'
@@ -254,54 +258,11 @@ const setupCountdownListener = async () => {
     }
 }
 
-const updateTime = () => {
-    const now = new Date()
+// 使用 composable 中的 updateTimeForDefaultDisplay 方法替代
 
-    // 格式化时间
-    const hours = now.getHours().toString().padStart(2, '0')
-    const minutes = now.getMinutes().toString().padStart(2, '0')
-    const seconds = now.getSeconds().toString().padStart(2, '0')
-    currentTime.value = `${hours}:${minutes}:${seconds}`
-
-    // 格式化日期
-    const year = now.getFullYear()
-    const month = (now.getMonth() + 1).toString().padStart(2, '0')
-    const day = now.getDate().toString().padStart(2, '0')
-    currentDate.value = `${year}-${month}-${day}`
-
-    // 格式化星期
-    currentWeekday.value = weekdays[now.getDay()]
-
-    // 触发倒计时重新计算（通过更新响应式数据来触发计算属性重新计算）
-    // 这里不需要额外操作，因为计算属性会自动响应时间变化
-}
-
-// 计算距离下个节日的天数
-const calculateNextHoliday = () => {
-    const now = new Date()
-    const currentYear = now.getFullYear()
-
-    // 简单的节日计算（可以扩展更多节日）
-    const holidays = [
-        { name: '元旦', date: new Date(currentYear + 1, 0, 1) },
-        { name: '春节', date: new Date(currentYear + 1, 1, 10) }, // 假设日期
-        { name: '清明节', date: new Date(currentYear + 1, 3, 5) },
-        { name: '劳动节', date: new Date(currentYear + 1, 4, 1) },
-        { name: '端午节', date: new Date(currentYear + 1, 5, 14) },
-        { name: '中秋节', date: new Date(currentYear + 1, 8, 17) },
-        { name: '国庆节', date: new Date(currentYear, 9, 1) }
-    ]
-
-    // 找到下一个节日
-    const nextHolidayData = holidays.find(holiday => holiday.date > now)
-    if (nextHolidayData) {
-        const diffTime = nextHolidayData.date.getTime() - now.getTime()
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-        nextHoliday.value = {
-            name: nextHolidayData.name,
-            days: diffDays
-        }
-    }
+// 使用 composable 中的 calculateNextHoliday 方法
+const updateNextHoliday = () => {
+    nextHoliday.value = getNextHoliday()
 }
 
 
@@ -317,15 +278,13 @@ onMounted(async () => {
         console.error('Failed to start countdown timer:', error);
     }
 
-    updateTime();
-    calculateNextHoliday();
-    timer = setInterval(updateTime, 1000);
+    // 启动时间更新定时器
+    startTimer(updateTimeForDefaultDisplay);
+    updateNextHoliday();
 });
 
 onUnmounted(() => {
-    if (timer) {
-        clearInterval(timer);
-    }
+    stopTimer();
     if (unlistenCountdown) {
         unlistenCountdown();
     }

@@ -20,30 +20,30 @@
         "alwaysOnTop": true,
         "transparent": true,
         "shadow": true,
+        "resizable": false,
         "x": null,
         "y": null,
-        "center": false
+        "center": true
       },
       {
         "label": "settings",
-        "url": "/settings",
         "title": "设置",
+        "url": "/settings",
         "width": 570,
         "height": 400,
         "decorations": true,
         "alwaysOnTop": false,
         "transparent": false,
         "shadow": true,
-        "visible": false,
         "center": true,
-        "resizable": true
+        "visible": false
       }
     ],
     "trayIcon": {
       "iconPath": "icons/icon.png",
       "iconAsTemplate": true
     },
-    "security": { 
+    "security": {
       "csp": null
     }
   },

@@ -5,12 +5,14 @@ use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, PhysicalPosition};
 
 // 导入自定义模块
+pub mod config;
 pub mod countdown;
 pub mod database;
 pub mod todo;
 pub mod window_commands;
 
-pub use database::{get_migrations, CountdownConfig};
+pub use database::get_migrations;
+pub use config::CountdownConfig;
 
 type ConfigState = Arc<Mutex<CountdownConfig>>;
 
@@ -34,6 +36,12 @@ fn toggle_shadow(window: tauri::WebviewWindow) -> Result<(), String> {
     window
         .set_decorations(!is_decorated)
         .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn hide_to_tray(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -200,7 +208,7 @@ pub async fn db_pool(app: &tauri::AppHandle) -> Result<SqlitePool, sqlx::Error> 
 }
 
 pub fn run() {
-    let config = database::get_default_config();
+    let config = config::get_default_countdown_config();
     let _config_state: ConfigState = Arc::new(Mutex::new(config));
 
     tauri::Builder::default()
@@ -229,6 +237,39 @@ pub fn run() {
                 }
             });
 
+            // 加载并应用窗口设置
+            let app_handle_settings = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let pool_state: tauri::State<SqlitePool> = app_handle_settings.state();
+                if let Ok(settings) = config::load_window_settings_from_db_internal(pool_state.inner()).await {
+                    if let Some(main_window) = app_handle_settings.get_webview_window("main") {
+                        // 应用窗口位置
+                        let _ = window_commands::set_main_window_position_internal(main_window.clone(), settings.window_position).await;
+                        
+                        // 应用置顶设置
+                        let _ = main_window.set_always_on_top(settings.always_on_top);
+                        
+                        // 应用主题
+                        let theme_script = format!("document.documentElement.setAttribute('data-theme', '{}')", settings.theme);
+                        let _ = main_window.eval(&theme_script);
+                        
+                        // 应用透明度
+                        let opacity_script = format!(
+                            "document.documentElement.style.setProperty('--bg-primary-opacity', '{}'); document.documentElement.style.setProperty('--bg-secondary-opacity', '{}')",
+                            settings.opacity, settings.opacity
+                        );
+                        let _ = main_window.eval(&opacity_script);
+                        
+                        // 应用主题色
+                        let accent_color_script = format!(
+                            "document.documentElement.style.setProperty('--accent-color', '{}')",
+                            settings.accent_color
+                        );
+                        let _ = main_window.eval(&accent_color_script);
+                    }
+                }
+            });
+
             let menu = create_tray_menu(app.handle()).expect("Failed to create tray menu");
             TrayIconBuilder::with_id("tray")
                 .menu(&menu)
@@ -243,13 +284,24 @@ pub fn run() {
             greet,
             toggle_always_on_top,
             toggle_shadow,
+            hide_to_tray,
             set_window_position,
             window_commands::show_settings_window,
+            window_commands::set_main_window_position,
+            window_commands::set_window_opacity,
+            window_commands::set_always_on_top,
+
+            window_commands::eval_script_in_main_window,
             countdown::update_countdown_config,
             countdown::start_countdown_timer,
-            database::load_config_from_db,
-            database::save_config_to_db,
+            config::load_countdown_config_from_db,
+            config::save_countdown_config_to_db,
             database::save_countdown_record,
+            config::load_window_settings_from_db,
+            config::save_window_settings_to_db,
+            config::load_ai_settings_from_db,
+            config::save_ai_settings_to_db,
+            config::get_ai_settings_for_test,
             todo::add_todo,
             todo::get_all_todos,
             todo::get_recent_todos,

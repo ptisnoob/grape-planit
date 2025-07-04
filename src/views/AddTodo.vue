@@ -1,7 +1,26 @@
 <template>
     <div class="add-todo-view">
+        <!-- AI未配置提示 -->
+        <div v-if="!isAIConfigured && !showForm" class="ai-config-prompt">
+            <div class="prompt-container">
+                <div class="prompt-icon">🤖</div>
+                <h2 class="prompt-title">AI助手未配置</h2>
+                <p class="prompt-description">
+                    要使用AI智能填写功能，请先在设置中配置AI服务
+                </p>
+                <div class="prompt-actions">
+                    <button @click="openSettings" class="settings-btn">
+                        前往设置
+                    </button>
+                    <button @click="skipAI" class="manual-btn">
+                        手动填写
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- AI辅助输入阶段 -->
-        <div v-if="!showForm" class="ai-input-stage">
+        <div v-else-if="!showForm" class="ai-input-stage">
             <div class="ai-input-container">
                 <h2 class="ai-title">AI智能填写</h2>
                 <form @submit.prevent="handleAISubmit" class="ai-form">
@@ -75,7 +94,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
 import { TodoVo } from '@/model/todo';
@@ -86,6 +105,7 @@ const router = useRouter();
 const aiInput = ref('')
 const isLoading = ref(false)
 const showForm = ref(false)
+const isAIConfigured = ref(false)
 
 const todo = ref<TodoVo>({
     title: '',
@@ -149,6 +169,25 @@ const handleAISubmit = async () => {
     }
 }
 
+// 检查AI配置
+const checkAIConfiguration = async () => {
+    try {
+        await defaultAIService.loadConfigFromDB()
+        const config = defaultAIService.getConfig()
+        isAIConfigured.value = !!(config.apiKey && config.baseUrl)
+    } catch (error) {
+        console.error('检查AI配置失败:', error)
+        isAIConfigured.value = false
+    }
+}
+
+// 打开设置页面
+const openSettings = () => {
+    invoke('open_settings_window').catch(error => {
+        console.error('打开设置窗口失败:', error)
+    })
+}
+
 // 跳过AI助手
 const skipAI = () => {
     showForm.value = true
@@ -206,6 +245,11 @@ const saveTodo = async () => {
         alert('保存失败，请查看控制台');
     }
 };
+
+// 组件挂载时检查AI配置
+onMounted(() => {
+    checkAIConfiguration()
+})
 </script>
 
 <style scoped>
@@ -332,6 +376,88 @@ select {
     background: var(--bg-tertiary);
 }
 
+/* AI配置提示样式 */
+.ai-config-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 20px;
+}
+
+.prompt-container {
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 32px 24px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.prompt-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.8;
+}
+
+.prompt-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.prompt-description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+
+.prompt-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.settings-btn,
+.manual-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 100px;
+}
+
+.settings-btn {
+    background: var(--accent-color);
+    color: white;
+}
+
+.settings-btn:hover {
+    background: var(--accent-color-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.manual-btn {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.manual-btn:hover {
+    background: var(--bg-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
 /* AI相关样式 */
 .ai-input-stage {
     display: flex;
@@ -374,7 +500,7 @@ select {
     border-radius: 8px;
     background: var(--bg-secondary);
     color: var(--text-primary);
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1.5;
     resize: vertical;
     min-height: 100px;

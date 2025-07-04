@@ -6,18 +6,14 @@
             </button>
             <Icon v-else :name="currentNav.icon" :size="18" @click="toggleNav" />
             <ModeToggle v-if="route.path === '/'" @mode-changed="handleModeChange" />
-            <button v-if="route.path === '/list'" class="nav-link settings-btn"  @click="toAddTodo" >
+            <button v-if="route.path === '/list'" class="nav-link settings-btn" @click="toAddTodo">
                 <Icon name="plus" :size="18" />
             </button>
         </div>
         <div class="header-right">
             <ThemeToggle />
-            <button class="nav-link settings-btn" @click="openSettings">
-                <Icon name="settings" :size="18" />
-            </button>
-            <button class="nav-link close-btn" >
-                <Icon name="close" :size="18" />
-            </button>
+            <SettingsBtn />
+            <Close />
         </div>
     </header>
 </template>
@@ -27,7 +23,8 @@ import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ModeToggle from './ModeToggle.vue';
 import ThemeToggle from './ThemeToggle.vue';
-import { invoke } from '@tauri-apps/api/core';
+import SettingsBtn from "./SettingsBtn.vue"
+import Close from './Close.vue';
 
 defineProps<{ isVisible: boolean }>();
 
@@ -67,15 +64,6 @@ const handleModeChange = (mode: string) => {
     emit('mode-changed', mode);
 };
 
-const openSettings = async () => {
-    try {
-        await invoke('show_settings_window');
-    } catch (error) {
-        console.error('Failed to open settings window:', error);
-    }
-};
-
-
 </script>
 
 <style lang="scss" scoped>
@@ -114,39 +102,6 @@ const openSettings = async () => {
     gap: 8px;
 }
 
-.nav-link {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-primary);
-    padding: 8px 12px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-    text-decoration: none;
-    white-space: nowrap;
-    cursor: pointer;
-
-    .icon {
-        color: inherit;
-    }
-
-
-
-    &.active,
-    &:hover {
-        color: var(--accent-color);
-        background-color: rgba(var(--accent-color-rgb), 0.1);
-        transform: scale(1.1);
-    }
-}
-
-.settings-btn {
-    border: none;
-    background: none;
-    cursor: pointer;
-}
 
 .back-btn {
     border: none;
@@ -154,7 +109,7 @@ const openSettings = async () => {
     cursor: pointer;
     font-size: 12px;
     padding: 4px 8px;
-    
+
     &:hover {
         color: var(--accent-color);
         background-color: rgba(var(--accent-color-rgb), 0.1);

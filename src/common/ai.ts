@@ -1,6 +1,7 @@
 import { ExtractionTaskPrompt } from "./prompt"
 import { GDate } from "./date"
 import { TodoVo } from '@/model/todo';
+import { invoke } from '@tauri-apps/api/core';
 
 // 定义消息类型
 export interface ChatMessage {
@@ -229,6 +230,112 @@ export class AIService {
      */
     getConfig(): AIConfig {
         return { ...this.config };
+    }
+
+    /**
+     * 更新配置
+     * @param config 新的配置
+     */
+    updateConfig(config: Partial<AIConfig>): void {
+        this.config = {
+            ...this.config,
+            ...config
+        };
+    }
+
+    /**
+     * 从数据库加载AI配置
+     */
+    async loadConfigFromDB(): Promise<void> {
+        try {
+            const settings = await invoke('load_ai_settings_from_db') as {
+                api_key: string;
+                base_url: string;
+                model: string;
+            };
+            
+            this.config = {
+                apiKey: settings.api_key,
+                baseUrl: settings.base_url,
+                model: settings.model
+            };
+        } catch (error) {
+            console.error('从数据库加载AI配置失败:', error);
+        }
+    }
+
+    /**
+     * 保存AI配置到数据库
+     * @param config AI配置
+     */
+    async saveConfigToDB(config: AIConfig): Promise<void> {
+        try {
+            await invoke('save_ai_settings_to_db', {
+                settings: {
+                    api_key: config.apiKey,
+                    base_url: config.baseUrl,
+                    model: config.model
+                }
+            });
+            
+            // 更新本地配置
+            this.updateConfig(config);
+        } catch (error) {
+            console.error('保存AI配置到数据库失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 测试AI连接
+     * @returns 测试结果
+     */
+    async testConnection(): Promise<{ success: boolean; message: string; responseTime?: number }> {
+        const startTime = Date.now();
+        
+        try {
+            // 验证配置
+            if (!this.config.apiKey) {
+                return {
+                    success: false,
+                    message: 'API Key未配置'
+                };
+            }
+            
+            if (!this.config.baseUrl) {
+                return {
+                    success: false,
+                    message: 'Base URL未配置'
+                };
+            }
+            
+            // 发送测试请求
+            const response = await this.createChatCompletion({
+                messages: [
+                    {
+                        role: 'user',
+                        content: 'Hello, this is a test message. Please respond with "OK".'
+                    }
+                ],
+                max_tokens: 10,
+                temperature: 0.1
+            });
+            
+            const responseTime = Date.now() - startTime;
+            
+            return {
+                success: true,
+                message: `连接成功！响应时间: ${responseTime}ms`,
+                responseTime
+            };
+        } catch (error) {
+            const responseTime = Date.now() - startTime;
+            return {
+                success: false,
+                message: `连接失败: ${error instanceof Error ? error.message : String(error)}`,
+                responseTime
+            };
+        }
     }
 
     async extTask(input: string): Promise<TodoVo | null> {
