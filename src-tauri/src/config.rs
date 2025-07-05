@@ -3,6 +3,21 @@ use sqlx::{FromRow, SqlitePool, Row};
 use tauri::{State, Manager};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct WeatherSettings {
+    pub enabled: bool,
+    #[serde(rename = "api_key")]
+    #[sqlx(rename = "amap_api_key")]
+    pub api_key: String,
+    pub location_name: String,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub adcode: Option<String>,
+    pub province: Option<String>,
+    pub city: Option<String>,
+    pub district: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct CustomCountdown {
     #[serde(rename = "name")]
@@ -45,6 +60,12 @@ pub struct AISettings {
     pub api_key: String,
     pub base_url: String,
     pub model: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct ShortcutSettings {
+    pub toggle_window: String,
+    pub quick_add_todo: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -94,6 +115,27 @@ pub fn get_default_todo_color_settings() -> TodoColorSettings {
     colors.insert("level-uncategorized".to_string(), "#bdbdbd".to_string());
     
     TodoColorSettings { colors }
+}
+
+pub fn get_default_shortcut_settings() -> ShortcutSettings {
+    ShortcutSettings {
+        toggle_window: "Alt+G".to_string(),
+        quick_add_todo: "Alt+N".to_string(),
+    }
+}
+
+pub fn get_default_weather_settings() -> WeatherSettings {
+    WeatherSettings {
+        enabled: false,
+        api_key: String::new(),
+        location_name: String::new(),
+        latitude: None,
+        longitude: None,
+        adcode: None,
+        province: None,
+        city: None,
+        district: None,
+    }
 }
 
 // 倒计时配置相关函数
@@ -146,6 +188,202 @@ pub async fn save_countdown_config_to_db(pool: State<'_, SqlitePool>, config: Co
         })?;
     
     Ok(())
+}
+
+// 快捷键设置相关函数
+#[tauri::command]
+pub async fn load_shortcut_settings_from_db(pool: State<'_, SqlitePool>) -> Result<ShortcutSettings, String> {
+    load_shortcut_settings_from_db_internal(pool.inner())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+pub async fn load_shortcut_settings_from_db_internal(
+    pool: &SqlitePool,
+) -> Result<ShortcutSettings, sqlx::Error> {
+    let result = sqlx::query_as::<_, ShortcutSettings>(
+        "SELECT toggle_window, quick_add_todo FROM shortcut_settings ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(settings) = result {
+        Ok(settings)
+    } else {
+        Ok(get_default_shortcut_settings())
+    }
+}
+
+#[tauri::command]
+pub async fn save_shortcut_settings_to_db(pool: State<'_, SqlitePool>, settings: ShortcutSettings) -> Result<(), String> {
+    println!("🔧 [Rust] save_shortcut_settings_to_db 开始执行，设置: {:?}", settings);
+    
+    sqlx::query("DELETE FROM shortcut_settings")
+        .execute(pool.inner())
+        .await
+        .map_err(|e| {
+            println!("❌ [Rust] 删除现有快捷键设置失败: {}", e);
+            e.to_string()
+        })?;
+    
+    sqlx::query("INSERT INTO shortcut_settings (toggle_window, quick_add_todo) VALUES (?, ?)")
+        .bind(&settings.toggle_window)
+        .bind(&settings.quick_add_todo)
+        .execute(pool.inner())
+        .await
+        .map_err(|e| {
+            println!("❌ [Rust] 插入新快捷键设置失败: {}", e);
+            e.to_string()
+        })?;
+    
+    println!("✅ [Rust] 快捷键设置保存成功");
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn register_global_shortcuts(app: tauri::AppHandle, settings: ShortcutSettings) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, GlobalShortcutExt, ShortcutState};
+    use tauri::Emitter;
+    
+    println!("🔧 [Rust] 注册全局快捷键: {:?}", settings);
+    
+    // 先取消注册所有现有的快捷键
+    let _ = app.global_shortcut().unregister_all();
+    
+    // 解析并注册显示/隐藏窗口快捷键
+    if let Ok(shortcut) = parse_shortcut(&settings.toggle_window) {
+        let app_handle = app.clone();
+        app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
+            // 只在按键按下时触发，避免按下和释放都触发
+            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    if window.is_visible().unwrap_or(false) {
+                        let _ = window.hide();
+                    } else {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            }
+        }).map_err(|e| format!("注册显示/隐藏窗口快捷键失败: {}", e))?;
+        
+        println!("✅ [Rust] 显示/隐藏窗口快捷键注册成功: {}", settings.toggle_window);
+    } else {
+        println!("❌ [Rust] 无法解析显示/隐藏窗口快捷键: {}", settings.toggle_window);
+    }
+    
+    // 解析并注册快速添加待办快捷键
+    if let Ok(shortcut) = parse_shortcut(&settings.quick_add_todo) {
+        let app_handle = app.clone();
+        app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
+            // 只在按键按下时触发，避免按下和释放都触发
+            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    // 显示窗口并聚焦
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    
+                    // 通过事件系统通知前端打开添加待办页面
+                    let _ = window.emit("quick-add-todo", ());
+                }
+            }
+        }).map_err(|e| format!("注册快速添加待办快捷键失败: {}", e))?;
+        
+        println!("✅ [Rust] 快速添加待办快捷键注册成功: {}", settings.quick_add_todo);
+    } else {
+        println!("❌ [Rust] 无法解析快速添加待办快捷键: {}", settings.quick_add_todo);
+    }
+    
+    println!("✅ [Rust] 全局快捷键注册完成");
+    Ok(())
+}
+
+// 解析快捷键字符串为Shortcut对象
+fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_shortcut::Shortcut, String> {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+    
+    let parts: Vec<&str> = shortcut_str.split('+').collect();
+    if parts.is_empty() {
+        return Err("快捷键格式无效".to_string());
+    }
+    
+    let mut modifiers = Modifiers::empty();
+    let mut key_code = None;
+    
+    for part in parts {
+        let part = part.trim();
+        match part.to_lowercase().as_str() {
+            "ctrl" | "control" => modifiers |= Modifiers::CONTROL,
+            "alt" => modifiers |= Modifiers::ALT,
+            "shift" => modifiers |= Modifiers::SHIFT,
+            "meta" | "cmd" | "super" => modifiers |= Modifiers::SUPER,
+            key => {
+                key_code = Some(match key.to_lowercase().as_str() {
+                    "a" => Code::KeyA,
+                    "b" => Code::KeyB,
+                    "c" => Code::KeyC,
+                    "d" => Code::KeyD,
+                    "e" => Code::KeyE,
+                    "f" => Code::KeyF,
+                    "g" => Code::KeyG,
+                    "h" => Code::KeyH,
+                    "i" => Code::KeyI,
+                    "j" => Code::KeyJ,
+                    "k" => Code::KeyK,
+                    "l" => Code::KeyL,
+                    "m" => Code::KeyM,
+                    "n" => Code::KeyN,
+                    "o" => Code::KeyO,
+                    "p" => Code::KeyP,
+                    "q" => Code::KeyQ,
+                    "r" => Code::KeyR,
+                    "s" => Code::KeyS,
+                    "t" => Code::KeyT,
+                    "u" => Code::KeyU,
+                    "v" => Code::KeyV,
+                    "w" => Code::KeyW,
+                    "x" => Code::KeyX,
+                    "y" => Code::KeyY,
+                    "z" => Code::KeyZ,
+                    "0" => Code::Digit0,
+                    "1" => Code::Digit1,
+                    "2" => Code::Digit2,
+                    "3" => Code::Digit3,
+                    "4" => Code::Digit4,
+                    "5" => Code::Digit5,
+                    "6" => Code::Digit6,
+                    "7" => Code::Digit7,
+                    "8" => Code::Digit8,
+                    "9" => Code::Digit9,
+                    "space" => Code::Space,
+                    "enter" => Code::Enter,
+                    "escape" => Code::Escape,
+                    "tab" => Code::Tab,
+                    "backspace" => Code::Backspace,
+                    "delete" => Code::Delete,
+                    "f1" => Code::F1,
+                    "f2" => Code::F2,
+                    "f3" => Code::F3,
+                    "f4" => Code::F4,
+                    "f5" => Code::F5,
+                    "f6" => Code::F6,
+                    "f7" => Code::F7,
+                    "f8" => Code::F8,
+                    "f9" => Code::F9,
+                    "f10" => Code::F10,
+                    "f11" => Code::F11,
+                    "f12" => Code::F12,
+                    _ => return Err(format!("不支持的按键: {}", key)),
+                });
+            }
+        }
+    }
+    
+    if let Some(code) = key_code {
+        Ok(Shortcut::new(Some(modifiers), code))
+    } else {
+        Err("未找到有效的按键".to_string())
+    }
 }
 
 // 窗口设置相关函数
@@ -337,5 +575,62 @@ pub async fn apply_todo_colors_to_main_window(
         }
     }
     
+    Ok(())
+}
+
+// 天气设置相关函数
+#[tauri::command]
+pub async fn load_weather_settings_from_db(pool: State<'_, SqlitePool>) -> Result<WeatherSettings, String> {
+    load_weather_settings_from_db_internal(pool.inner())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+pub async fn load_weather_settings_from_db_internal(
+    pool: &SqlitePool,
+) -> Result<WeatherSettings, sqlx::Error> {
+    let result = sqlx::query_as::<_, WeatherSettings>(
+        "SELECT enabled, amap_api_key, location_name, latitude, longitude, adcode, province, city, district FROM weather_settings ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(settings) = result {
+        Ok(settings)
+    } else {
+        Ok(get_default_weather_settings())
+    }
+}
+
+#[tauri::command]
+pub async fn save_weather_settings_to_db(pool: State<'_, SqlitePool>, settings: WeatherSettings) -> Result<(), String> {
+    println!("🔧 [Rust] save_weather_settings_to_db 开始执行，设置: {:?}", settings);
+    
+    sqlx::query("DELETE FROM weather_settings")
+        .execute(pool.inner())
+        .await
+        .map_err(|e| {
+            println!("❌ [Rust] 删除现有天气设置失败: {}", e);
+            e.to_string()
+        })?;
+    
+    sqlx::query("INSERT INTO weather_settings (enabled, amap_api_key, location_name, latitude, longitude, adcode, province, city, district) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(settings.enabled)
+        .bind(&settings.api_key)
+        .bind(&settings.location_name)
+        .bind(settings.latitude)
+        .bind(settings.longitude)
+        .bind(&settings.adcode)
+        .bind(&settings.province)
+        .bind(&settings.city)
+        .bind(&settings.district)
+        .execute(pool.inner())
+        .await
+        .map_err(|e| {
+            println!("❌ [Rust] 插入新天气设置失败: {}", e);
+            e.to_string()
+        })?;
+    
+    println!("✅ [Rust] 天气设置保存成功");
     Ok(())
 }

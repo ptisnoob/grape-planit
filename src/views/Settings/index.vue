@@ -4,8 +4,9 @@
         <div class="settings-sidebar">
             <div class="sidebar-content">
                 <div class="menu-items">
-                    <div v-for="item in menuItems" :key="item.key"
-                        :class="['menu-item', { active: activeMenu === item.key }]" @click="setActiveMenu(item.key)">
+                    <div v-for="item in menuItems" :key="item.value"
+                        :class="['menu-item', { active: activeMenu === item.value }]"
+                        @click="setActiveMenu(item.value)">
                         {{ item.label }}
                     </div>
                 </div>
@@ -24,8 +25,10 @@
                 <GeneralSettings v-if="activeMenu === 'general'" />
                 <TimeSettings v-else-if="activeMenu === 'time'" />
                 <TodoSettings v-else-if="activeMenu === 'todo'" />
+                <WeatherSettings v-else-if="activeMenu === 'weather'" />
                 <AISettings v-else-if="activeMenu === 'ai'" />
-                
+                <ShortcutSettings v-else-if="activeMenu === 'shortcuts'" />
+
                 <!-- 其他菜单的空内容 -->
                 <div v-else class="empty-content">
                     <p>{{ currentMenuLabel }}内容将在这里显示...</p>
@@ -42,17 +45,21 @@ import GeneralSettings from './components/GeneralSettings.vue';
 import TimeSettings from './components/TimeSettings.vue';
 import AISettings from './components/AISettings.vue';
 import TodoSettings from './components/TodoSettings.vue';
+import ShortcutSettings from './components/ShortcutSettings.vue';
+import WeatherSettings from './components/WeatherSettings.vue';
+import { SelOption } from "@/model/public"
+
 
 const { initTheme } = useTheme();
 
 // 菜单项配置
-const menuItems = ref([
-    { key: 'general', label: '通用' },
-    { key: 'time', label: '时间' },
-    { key: 'todo', label: '待办' },
-    { key: 'weather', label: '天气' },
-    { key: 'ai', label: 'AI' },
-    { key: 'shortcuts', label: '快捷键' }
+const menuItems = ref<SelOption[]>([
+    { value: 'general', label: '通用' },
+    { value: 'time', label: '时间' },
+    { value: 'todo', label: '待办' },
+    { value: 'weather', label: '天气' },
+    { value: 'ai', label: 'AI' },
+    { value: 'shortcuts', label: '快捷键' }
 ]);
 
 // 当前激活的菜单
@@ -65,7 +72,7 @@ const setActiveMenu = (key: string) => {
 
 // 当前菜单标签
 const currentMenuLabel = computed(() => {
-    const item = menuItems.value.find(item => item.key === activeMenu.value);
+    const item = menuItems.value.find(i => i.value === activeMenu.value);
     return item ? item.label : '设置';
 });
 
@@ -149,27 +156,27 @@ onMounted(() => {
         flex: 1;
         padding: 20px;
         overflow-y: auto;
-        
+
         /* 自定义滚动条样式 */
         &::-webkit-scrollbar {
             width: 8px;
         }
-        
+
         &::-webkit-scrollbar-track {
             background: var(--bg-secondary);
             border-radius: 4px;
         }
-        
+
         &::-webkit-scrollbar-thumb {
             background: var(--border-color);
             border-radius: 4px;
             transition: background var(--transition-fast);
         }
-        
+
         &::-webkit-scrollbar-thumb:hover {
             background: var(--accent-color);
         }
-        
+
         /* Firefox 滚动条样式 */
         scrollbar-width: thin;
         scrollbar-color: var(--border-color) var(--bg-secondary);
@@ -189,6 +196,4 @@ onMounted(() => {
         }
     }
 }
-
-
 </style>

@@ -1,7 +1,8 @@
 <template>
-  <div class="list-view">
-    <!-- 顶部时间显示组件 -->
-    <TopTimeDisplay />
+  <WeatherBackground :show-weather-info="false" container-class="list-view">
+    <div class="list-view">
+      <!-- 顶部时间显示组件 -->
+      <TopTimeDisplay />
     
     <div class="add-button-container">
       <router-link to="/add" class="add-btn">+</router-link>
@@ -50,7 +51,8 @@
     <div v-if="isDragging && dragPreview" class="drag-preview" :style="previewStyle">
       {{ dragPreview.title }}
     </div>
-  </div>
+    </div>
+  </WeatherBackground>
 </template>
 
 <script setup lang="ts">
@@ -61,6 +63,7 @@ import { Todo } from '@/model/todo';
 import { GDate } from "@/common/date"
 import Empty from '@/components/Empty.vue';
 import TopTimeDisplay from '@/components/TopTimeDisplay.vue';
+import WeatherBackground from '@/components/WeatherBackground.vue';
 
 const list = ref<Todo[]>([]);
 const filterDays = ref(5); // 默认显示最近5天
@@ -370,7 +373,6 @@ const onMouseUp = async () => {
   position: relative;
   background: var(--bg-primary);
   overflow: hidden;
-  padding-top: 46px; /* 为顶部时间组件留出空间 */
 }
 
 .list-container {
@@ -380,6 +382,7 @@ const onMouseUp = async () => {
   /* 优化滚动条样式 */
   scrollbar-width: thin;
   scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+  padding-top: 46px;
 }
 
 /* Webkit浏览器滚动条样式 */

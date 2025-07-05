@@ -28,3 +28,9 @@ export interface CountdownConfig {
   showSeconds: boolean
   timeDisplayMode: string
 }
+
+// 快捷键设置类型定义
+export interface ShortcutSettings {
+  toggle_window: string
+  quick_add_todo: string
+}

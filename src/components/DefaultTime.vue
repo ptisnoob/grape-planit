@@ -1,55 +1,55 @@
 <template>
-    <div class="default-box animate__animated animate__fadeIn">
-
-        <!-- 时间显示区域 -->
-        <div class="time-container animate__animated animate__fadeInUp animate__delay-1s"
-            v-if="!shouldShowFinalCountdown">
-            <h1 class="time-display" @click="toggleTimeDisplay">{{ displayTime }}</h1>
-        </div>
-
-        <!-- 日期信息 -->
-        <div class="date-info animate__animated animate__fadeInUp animate__delay-1s"
-            v-if="modeStore.currentMode === 'current'">
-            <p class="date-text">{{ currentDate }} {{ currentWeekday }}</p>
-            <p class="holiday-text">下个节日：{{ nextHoliday.name }} (<span
-                    class="holiday-days animate__animated animate__pulse animate__infinite">{{ nextHoliday.days
-                    }}</span>天)</p>
-        </div>
-
-        <!-- 倒计时信息 -->
-        <div class="countdown-info animate__animated animate__fadeInUp animate__delay-1s"
-            v-else-if="!shouldShowFinalCountdown">
-            <p class="countdown-target">{{ countdownTarget }}</p>
-            <div class="countdown-actions" v-if="modeStore.currentMode === 'workEnd'">
-                <button class="edit-btn" @click="openWorkEndSettings" title="设置下班时间">
-                    ✏️
-                </button>
+    <WeatherBackground :show-weather-info="modeStore.currentMode === 'current'" container-class="default-box">
+        <div class="default-box animate__animated animate__fadeIn">
+            <!-- 时间显示区域 -->
+            <div class="time-container animate__animated animate__fadeInUp animate__delay-1s"
+                v-if="!shouldShowFinalCountdown">
+                <h1 class="time-display" @click="toggleTimeDisplay">{{ displayTime }}</h1>
             </div>
-            <div class="countdown-actions" v-else-if="modeStore.currentMode === 'custom'">
-                <button class="action-btn" @click="openSettings">
-                    <i class="icon-settings"></i>
-                    设置
-                </button>
+
+            <!-- 日期信息 -->
+            <div class="date-info animate__animated animate__fadeInUp animate__delay-1s"
+                v-if="modeStore.currentMode === 'current'">
+                <p class="date-text">{{ currentDate }} {{ currentWeekday }}</p>
+                <p class="holiday-text">下个节日：{{ nextHoliday.name }} (<span
+                        class="holiday-days animate__animated animate__pulse animate__infinite">{{ nextHoliday.days
+                        }}</span>天)</p>
             </div>
-        </div>
 
-        <!-- 最后倒计时效果 -->
-        <div class="final-countdown-container" v-if="shouldShowFinalCountdown" @click="handleGotIt">
-            <div :key="finalCountdownNumber" class="final-countdown-number animate__animated animate__pulse">
-                {{ finalCountdownNumber }}
+            <!-- 倒计时信息 -->
+            <div class="countdown-info animate__animated animate__fadeInUp animate__delay-1s"
+                v-else-if="!shouldShowFinalCountdown">
+                <p class="countdown-target">{{ countdownTarget }}</p>
+                <div class="countdown-actions" v-if="modeStore.currentMode === 'workEnd'">
+                    <button class="edit-btn" @click="openWorkEndSettings" title="设置下班时间">
+                        ✏️
+                    </button>
+                </div>
+                <div class="countdown-actions" v-else-if="modeStore.currentMode === 'custom'">
+                    <button class="action-btn" @click="openSettings">
+                        <i class="icon-settings"></i>
+                        设置
+                    </button>
+                </div>
             </div>
+
+            <!-- 最后倒计时效果 -->
+            <div class="final-countdown-container" v-if="shouldShowFinalCountdown" @click="handleGotIt">
+                <div :key="finalCountdownNumber" class="final-countdown-number animate__animated animate__pulse">
+                    {{ finalCountdownNumber }}
+                </div>
+            </div>
+
+            <h2 class="motivation-text animate__animated animate__fadeInUp animate__delay-2s"
+                v-if="!shouldShowFinalCountdown">{{ motivationText }}</h2>
+            <!-- 下班时间设置弹窗 -->
+            <WorkEndSettings :visible="showWorkEndSettings" :work-end-time="workEndTime" @close="closeWorkEndSettings"
+                @saved="handleWorkEndSaved" />
+
+            <!-- 自定义倒计时设置弹窗 -->
+            <CustomCountdownSettings :visible="showSettings" :custom-countdown="customCountdown" @close="closeSettings" />
         </div>
-
-        <h2 class="motivation-text animate__animated animate__fadeInUp animate__delay-2s"
-            v-if="!shouldShowFinalCountdown">{{ motivationText }}</h2>
-        <!-- 下班时间设置弹窗 -->
-        <WorkEndSettings :visible="showWorkEndSettings" :work-end-time="workEndTime" @close="closeWorkEndSettings"
-            @saved="handleWorkEndSaved" />
-
-        <!-- 自定义倒计时设置弹窗 -->
-        <CustomCountdownSettings :visible="showSettings" :custom-countdown="customCountdown" @close="closeSettings" />
-
-    </div>
+    </WeatherBackground>
 </template>
 
 <script lang="ts" setup>
@@ -58,6 +58,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import WorkEndSettings from './WorkEndSettings.vue'
 import CustomCountdownSettings from './CustomCountdownSettings.vue'
+import WeatherBackground from './WeatherBackground.vue'
 import { CountdownConfig, CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
 import { useDatabase } from '@/composables/useDatabase'
@@ -372,6 +373,10 @@ const updateNextHoliday = () => {
 
 
 
+
+
+
+
 onMounted(async () => {
     await loadConfig();
     await setupCountdownListener();
@@ -642,11 +647,31 @@ onUnmounted(() => {
     color: var(--accent-color-hover, var(--accent-color));
 }
 
+
+
 /* 响应式调整 */
 @media (max-width: 768px) {
     .end-message {
         font-size: 20px;
         padding: 10px 16px;
+    }
+    
+    .weather-info {
+        top: 15px;
+        right: 15px;
+    }
+    
+    .weather-display {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    
+    .weather-icon {
+        font-size: 14px;
+    }
+    
+    .weather-desc {
+        font-size: 11px;
     }
 }
 </style>

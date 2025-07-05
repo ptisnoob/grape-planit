@@ -3,6 +3,7 @@ use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, PhysicalPosition};
+use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, GlobalShortcutExt};
 
 // 导入自定义模块
 pub mod config;
@@ -212,6 +213,7 @@ pub fn run() {
     let _config_state: ConfigState = Arc::new(Mutex::new(config));
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -284,6 +286,17 @@ pub fn run() {
                 }
             });
 
+            // 加载并注册全局快捷键
+            let app_handle_shortcuts = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let pool_state: tauri::State<SqlitePool> = app_handle_shortcuts.state();
+                if let Ok(shortcut_settings) = config::load_shortcut_settings_from_db_internal(pool_state.inner()).await {
+                    if let Err(e) = config::register_global_shortcuts(app_handle_shortcuts.clone(), shortcut_settings).await {
+                        eprintln!("Failed to register global shortcuts: {}", e);
+                    }
+                }
+            });
+
             let menu = create_tray_menu(app.handle()).expect("Failed to create tray menu");
             TrayIconBuilder::with_id("tray")
                 .menu(&menu)
@@ -325,7 +338,12 @@ pub fn run() {
             todo::delete_todo,
             config::load_todo_color_settings,
             config::save_todo_color_settings,
-            config::apply_todo_colors_to_main_window
+            config::apply_todo_colors_to_main_window,
+            config::load_shortcut_settings_from_db,
+            config::save_shortcut_settings_to_db,
+            config::register_global_shortcuts,
+            config::load_weather_settings_from_db,
+            config::save_weather_settings_to_db
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

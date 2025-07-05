@@ -3,6 +3,12 @@
         <!-- AI未配置提示 -->
         <div v-if="!isAIConfigured && !showForm" class="ai-config-prompt">
             <div class="prompt-container">
+                <div class="prompt-header">
+                    <button type="button" class="back-btn" @click="goBack">
+                        <Icon name="left" size="16" />
+                        返回
+                    </button>
+                </div>
                 <div class="prompt-icon">🤖</div>
                 <h2 class="prompt-title">AI助手未配置</h2>
                 <p class="prompt-description">
@@ -22,7 +28,13 @@
         <!-- AI辅助输入阶段 -->
         <div v-else-if="!showForm" class="ai-input-stage">
             <div class="ai-input-container">
-                <h2 class="ai-title">AI智能填写</h2>
+                <div class="ai-header">
+                    <button type="button" class="back-btn" @click="goBack" :disabled="isLoading">
+                        <Icon name="left" size="16" />
+                        返回
+                    </button>
+                    <h2 class="ai-title">AI智能填写</h2>
+                </div>
                 <form @submit.prevent="handleAISubmit" class="ai-form">
                     <textarea v-model="aiInput"
                         placeholder="例如：明天下午3点开会讨论项目进度，会议室在A座201，需要准备PPT； 后天是妈妈生日，记得准备礼物：7号到14号是xx生理期，记得别惹她生气；"
@@ -394,6 +406,16 @@ select {
     padding: 32px 24px;
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.prompt-header {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    justify-content: flex-start;
 }
 
 .prompt-icon {
@@ -473,11 +495,48 @@ select {
     text-align: center;
 }
 
+.ai-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.back-btn {
+    position: absolute;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.back-btn:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    transform: translateX(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.back-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .ai-title {
     font-size: 24px;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 8px;
+    margin: 0;
 }
 
 .ai-subtitle {

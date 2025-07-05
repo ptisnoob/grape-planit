@@ -310,7 +310,7 @@ export class AIService {
             }
             
             // 发送测试请求
-            const response = await this.createChatCompletion({
+            await this.createChatCompletion({
                 messages: [
                     {
                         role: 'user',

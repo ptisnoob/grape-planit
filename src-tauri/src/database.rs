@@ -96,7 +96,61 @@ pub fn get_migrations() -> Vec<Migration> {
             );",
             kind: MigrationKind::Up,
         },
-        // Migration version 7 and 8 removed - recent_days and default_startup columns are now included in the initial window_settings table creation
+        Migration {
+            version: 7,
+            description: "create_shortcut_settings_table",
+            sql: "CREATE TABLE IF NOT EXISTS shortcut_settings (
+                id INTEGER PRIMARY KEY,
+                toggle_window TEXT NOT NULL DEFAULT 'Alt+G',
+                quick_add_todo TEXT NOT NULL DEFAULT 'Alt+N',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 8,
+            description: "create_weather_settings_table",
+            sql: "CREATE TABLE IF NOT EXISTS weather_settings (
+                id INTEGER PRIMARY KEY,
+                amap_api_key TEXT NOT NULL DEFAULT '',
+                location_name TEXT NOT NULL DEFAULT '',
+                longitude REAL,
+                latitude REAL,
+                adcode TEXT NOT NULL DEFAULT '',
+                province TEXT NOT NULL DEFAULT '',
+                city TEXT NOT NULL DEFAULT '',
+                district TEXT NOT NULL DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 9,
+            description: "recreate_weather_settings_with_enabled",
+            sql: "CREATE TABLE IF NOT EXISTS weather_settings_new (
+                      id INTEGER PRIMARY KEY,
+                      amap_api_key TEXT NOT NULL DEFAULT '',
+                      location_name TEXT NOT NULL DEFAULT '',
+                      longitude REAL,
+                      latitude REAL,
+                      adcode TEXT NOT NULL DEFAULT '',
+                      province TEXT NOT NULL DEFAULT '',
+                      city TEXT NOT NULL DEFAULT '',
+                      district TEXT NOT NULL DEFAULT '',
+                      enabled BOOLEAN NOT NULL DEFAULT 0,
+                      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                  );
+                  INSERT OR IGNORE INTO weather_settings_new (id, amap_api_key, location_name, longitude, latitude, adcode, province, city, district, enabled, created_at, updated_at)
+                  SELECT id, amap_api_key, location_name, longitude, latitude, adcode, province, city, district, 0 as enabled, created_at, updated_at
+                  FROM weather_settings WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='weather_settings');
+                  DROP TABLE IF EXISTS weather_settings;
+                  ALTER TABLE weather_settings_new RENAME TO weather_settings;",
+            kind: MigrationKind::Up,
+        },
+        // Migration version 8 removed - recent_days and default_startup columns are now included in the initial window_settings table creation
 
     ]
 }
