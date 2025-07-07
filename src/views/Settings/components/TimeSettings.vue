@@ -1,15 +1,70 @@
 <template>
   <div class="time-settings">
     <div class="settings-section">
-      <h3 class="section-title">倒计时设置</h3>
+      <h3 class="section-title">下班倒计时设置</h3>
       <ConfigTip 
         icon="⏰" 
-        title="倒计时行为设置" 
-        description="配置倒计时的显示行为，包括何时进入最后倒计时阶段以及结束状态的保持时间。" 
+        title="下班倒计时配置" 
+        description="配置下班倒计时功能，包括是否启用、下班时间、工作日设置等。" 
       />
       
       <div class="time-settings-grid">
+        <!-- 是否开启下班倒计时功能 -->
         <div class="setting-item">
+          <label class="setting-label">启用下班倒计时</label>
+          <div class="switch-container">
+            <input 
+              type="checkbox" 
+              id="enableWorkEndCountdown"
+              v-model="currentSettings.enableWorkEndCountdown"
+              class="switch-input"
+            >
+            <label for="enableWorkEndCountdown" class="switch-label"></label>
+          </div>
+          <p class="setting-description">开启后将显示下班倒计时功能</p>
+        </div>
+
+        <!-- 下班时间设置 -->
+        <div class="setting-item" v-if="currentSettings.enableWorkEndCountdown">
+          <label class="setting-label">下班时间</label>
+          <div class="time-input-container">
+            <input 
+              type="time" 
+              v-model="currentSettings.workEndTime"
+              class="time-input"
+            >
+          </div>
+          <p class="setting-description">设置每日下班时间</p>
+        </div>
+
+        <!-- 工作日设置 -->
+        <div class="setting-item" v-if="currentSettings.enableWorkEndCountdown">
+          <label class="setting-label">工作日设置</label>
+          <div class="radio-group">
+            <label class="radio-item">
+              <input 
+                type="radio" 
+                value="single" 
+                v-model="currentSettings.workDays"
+                class="radio-input"
+              >
+              <span class="radio-label">单休（周日休息）</span>
+            </label>
+            <label class="radio-item">
+              <input 
+                type="radio" 
+                value="double" 
+                v-model="currentSettings.workDays"
+                class="radio-input"
+              >
+              <span class="radio-label">双休（周六日休息）</span>
+            </label>
+          </div>
+          <p class="setting-description">选择工作日模式，休息日不会显示下班倒计时</p>
+        </div>
+        
+        <!-- 最后倒计时触发时间 -->
+        <div class="setting-item" v-if="currentSettings.enableWorkEndCountdown">
           <label class="setting-label">最后倒计时触发时间</label>
           <div class="number-input-container">
             <input 
@@ -24,7 +79,8 @@
           <p class="setting-description">当倒计时剩余时间少于此值时，将进入最后倒计时阶段</p>
         </div>
         
-        <div class="setting-item">
+        <!-- 结束状态保持时间 -->
+        <div class="setting-item" v-if="currentSettings.enableWorkEndCountdown">
           <label class="setting-label">结束状态保持时间</label>
           <div class="number-input-container">
             <input 
@@ -62,15 +118,13 @@ import ConfigTip from '@/components/ConfigTip.vue'
 
 // 当前设置状态
 const currentSettings = ref<CountdownConfig>({
-  workEndTime: '',
-  customCountdown: {
-    name: '自定义事件',
-    target: ''
-  },
+  workEndTime: '18:00',
   showSeconds: true,
   timeDisplayMode: 'current',
+  enableWorkEndCountdown: true,
   finalCountdownMinutes: 1,  // 默认1分钟
-  endStateKeepMinutes: 5     // 默认5分钟
+  endStateKeepMinutes: 5,    // 默认5分钟
+  workDays: 'double'         // 默认双休
 })
 
 const { loadConfigFromDb, updateCountdownConfig } = useDatabase()
@@ -79,6 +133,7 @@ const { loadConfigFromDb, updateCountdownConfig } = useDatabase()
 const saveSettings = async () => {
   try {
     console.log('🔧 [前端] 开始保存时间设置:', currentSettings.value)
+    
     await updateCountdownConfig(currentSettings.value)
     console.log('✅ [前端] 时间设置已保存')
     
@@ -93,6 +148,9 @@ const saveSettings = async () => {
 
 // 恢复默认设置
 const resetToDefault = () => {
+  currentSettings.value.enableWorkEndCountdown = true
+  currentSettings.value.workEndTime = '18:00'
+  currentSettings.value.workDays = 'double'
   currentSettings.value.finalCountdownMinutes = 1
   currentSettings.value.endStateKeepMinutes = 5
   console.log('🔄 [前端] 时间设置已恢复默认值')
@@ -104,7 +162,9 @@ const loadSettings = async () => {
     const config = await loadConfigFromDb() as CountdownConfig 
     currentSettings.value = {
       ...config,
-      // 确保新字段有默认值
+      // 确保新字段有默认值，但保持 enableWorkEndCountdown 的原始值
+      enableWorkEndCountdown: config.enableWorkEndCountdown !== undefined ? config.enableWorkEndCountdown : true,
+      workDays: config.workDays || 'double',
       finalCountdownMinutes: config.finalCountdownMinutes || 1,
       endStateKeepMinutes: config.endStateKeepMinutes || 5
     }
@@ -162,6 +222,117 @@ onMounted(() => {
   color: var(--text-secondary);
   margin: 0;
   opacity: 0.8;
+}
+
+/* 开关样式 */
+.switch-container {
+  display: flex;
+  align-items: center;
+}
+
+.switch-input {
+  display: none;
+}
+
+.switch-label {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color var(--transition-normal);
+}
+
+.switch-label::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: transform var(--transition-normal);
+}
+
+.switch-input:checked + .switch-label {
+  background: var(--accent-color);
+}
+
+.switch-input:checked + .switch-label::after {
+  transform: translateX(20px);
+}
+
+/* 时间输入框样式 */
+.time-input-container {
+  display: flex;
+  align-items: center;
+}
+
+.time-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color var(--transition-normal);
+}
+
+.time-input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.1);
+}
+
+/* 单选按钮样式 */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.radio-input {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  appearance: none;
+  position: relative;
+}
+
+.radio-input:checked {
+  border-color: var(--accent-color);
+  background: var(--accent-color);
+}
+
+.radio-input:checked::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  background: white;
+  border-radius: 50%;
+}
+
+.radio-label {
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
 }
 
 /* 数字输入框样式 */

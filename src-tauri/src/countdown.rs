@@ -1,5 +1,5 @@
 use crate::database::{CountdownConfig, save_countdown_record};
-use chrono::{DateTime, Local, NaiveTime, TimeZone};
+use chrono::{ Local, NaiveTime, TimeZone};
 use serde::Serialize;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter, State};
@@ -18,18 +18,10 @@ pub async fn update_countdown_config(
     pool: State<'_, SqlitePool>,
     config: CountdownConfig,
 ) -> Result<(), String> {
-    println!("🔧 [Rust] update_countdown_config 被调用，配置: {:?}", config);
-    
     // 保存到数据库
     match crate::config::save_countdown_config_to_db(pool.clone(), config.clone()).await {
-        Ok(_) => {
-            println!("🔧 [Rust] update_countdown_config 成功保存到数据库");
-            Ok(())
-        }
-        Err(e) => {
-            println!("❌ [Rust] update_countdown_config 保存失败: {}", e);
-            Err(e)
-        }
+        Ok(_) => Ok(()),
+        Err(e) => Err(e)
     }
 }
 
@@ -39,6 +31,10 @@ pub async fn calculate_work_end_countdown(pool: &SqlitePool) -> Option<Countdown
         Ok(config) => config,
         Err(_) => return None,
     };
+    
+    if !config.enable_work_end_countdown {
+        return None;
+    }
     
     if config.work_end_time.is_empty() {
         return None;
@@ -58,7 +54,6 @@ pub async fn calculate_work_end_countdown(pool: &SqlitePool) -> Option<Countdown
     
     // 如果今天有重置记录，返回重置状态
     if reset_count > 0 {
-        println!("🔄 [Rust] 检测到今天有下班倒计时重置记录，返回重置状态");
         return Some(CountdownData {
             mode: "workEnd".to_string(),
             timestamp: 0,
@@ -68,12 +63,14 @@ pub async fn calculate_work_end_countdown(pool: &SqlitePool) -> Option<Countdown
     }
     
     let now = Local::now();
+    
     if let Ok(work_time) = NaiveTime::parse_from_str(&config.work_end_time, "%H:%M") {
         let work_end = now.date_naive().and_time(work_time);
         let work_end_dt = Local.from_local_datetime(&work_end).unwrap();
         
         let diff = work_end_dt - now;
         let total_seconds = diff.num_seconds();
+        
         
         if total_seconds <= 0 {
             Some(CountdownData {
@@ -95,49 +92,7 @@ pub async fn calculate_work_end_countdown(pool: &SqlitePool) -> Option<Countdown
     }
 }
 
-// 计算自定义倒计时
-pub async fn calculate_custom_countdown(pool: &SqlitePool) -> Option<CountdownData> {
-    let config = match crate::config::load_countdown_config_from_db_internal(pool).await {
-        Ok(config) => config,
-        Err(_) => return None,
-    };
-    
-    if config.custom_countdown.target.is_empty() {
-        return None;
-    }
-    
-    let now = Local::now();
-    if let Ok(target_dt) = DateTime::parse_from_rfc3339(&config.custom_countdown.target) {
-        let target_local = target_dt.with_timezone(&Local);
-        let diff = target_local - now;
-        let total_seconds = diff.num_seconds();
-        
-        if total_seconds <= 0 {
-            // 倒计时结束，返回finished状态
-            Some(CountdownData {
-                mode: "custom".to_string(),
-                timestamp: 0,
-                target_info: format!(
-                    "目标时间：{}",
-                    target_local.format("%Y-%m-%d %H:%M:%S")
-                ),
-                status: "finished".to_string(),
-            })
-        } else {
-            Some(CountdownData {
-                mode: "custom".to_string(),
-                timestamp: total_seconds,
-                target_info: format!(
-                    "目标时间：{}",
-                    target_local.format("%Y-%m-%d %H:%M:%S")
-                ),
-                status: "running".to_string(),
-            })
-        }
-    } else {
-        None
-    }
-}
+
 
 // 获取所有有效的倒计时
 pub async fn get_all_countdowns(pool: &SqlitePool) -> Vec<CountdownData> {
@@ -146,11 +101,6 @@ pub async fn get_all_countdowns(pool: &SqlitePool) -> Vec<CountdownData> {
     // 检查下班倒计时
     if let Some(work_end) = calculate_work_end_countdown(pool).await {
         countdowns.push(work_end);
-    }
-    
-    // 检查自定义倒计时
-    if let Some(custom) = calculate_custom_countdown(pool).await {
-        countdowns.push(custom);
     }
     
     countdowns
@@ -171,26 +121,23 @@ pub async fn calculate_countdown_timestamp(pool: &SqlitePool) -> CountdownData {
     // 根据当前显示模式返回对应的倒计时
     match config.time_display_mode.as_str() {
         "workEnd" => {
-            if let Some(countdown) = calculate_work_end_countdown(pool).await {
-                countdown
-            } else {
-                CountdownData {
-                    mode: "workEnd".to_string(),
-                    timestamp: 0,
-                    target_info: "请设置下班时间".to_string(),
-                    status: "reset".to_string(),
+            if config.enable_work_end_countdown {
+                if let Some(countdown) = calculate_work_end_countdown(pool).await {
+                    countdown
+                } else {
+                    CountdownData {
+                        mode: "workEnd".to_string(),
+                        timestamp: 0,
+                        target_info: "请设置下班时间".to_string(),
+                        status: "reset".to_string(),
+                    }
                 }
-            }
-        }
-        "custom" => {
-            if let Some(countdown) = calculate_custom_countdown(pool).await {
-                countdown
             } else {
                 CountdownData {
-                    mode: "custom".to_string(),
+                    mode: "current".to_string(),
                     timestamp: 0,
-                    target_info: "请设置目标时间".to_string(),
-                    status: "reset".to_string(),
+                    target_info: String::new(),
+                    status: "running".to_string(),
                 }
             }
         }
@@ -209,71 +156,34 @@ pub async fn start_countdown_timer(
     pool: State<'_, SqlitePool>,
 ) -> Result<(), String> {
     let pool_clone = pool.inner().clone();
-    // 记录倒计时开始到数据库
-    let config = crate::config::load_countdown_config_from_db_internal(&pool_clone).await.unwrap_or_else(|_| crate::config::get_default_countdown_config());
-    if config.time_display_mode == "workEnd" && !config.work_end_time.is_empty() {
-        let _ = save_countdown_record(
-            pool.clone(),
-            "workEnd".to_string(),
-            Some(config.work_end_time.clone()),
-            None,
-        )
-        .await;
-    } else if config.time_display_mode == "custom" && !config.custom_countdown.target.is_empty() {
-        let _ = save_countdown_record(
-            pool.clone(),
-            "custom".to_string(),
-            Some(config.custom_countdown.target.clone()),
-            None,
-        )
-        .await;
-    }
-
+    
     tokio::spawn(async move {
         let mut interval = interval(Duration::from_secs(1));
 
         loop {
             interval.tick().await;
 
-            // 获取当前配置以确定显示模式
+            // 获取当前配置
             let config = crate::config::load_countdown_config_from_db_internal(&pool_clone).await
                 .unwrap_or_else(|_| crate::config::get_default_countdown_config());
             
-            // 根据当前显示模式发送对应的倒计时数据
-            let countdown_data = match config.time_display_mode.as_str() {
-                "workEnd" => {
-                    if let Some(countdown) = calculate_work_end_countdown(&pool_clone).await {
-                        countdown
-                    } else {
-                        CountdownData {
-                            mode: "workEnd".to_string(),
-                            timestamp: 0,
-                            target_info: "请设置下班时间".to_string(),
-                            status: "reset".to_string(),
-                        }
+            // 如果启用了下班倒计时，就发送倒计时数据
+            if config.enable_work_end_countdown {
+                let countdown_data = if let Some(countdown) = calculate_work_end_countdown(&pool_clone).await {
+                    countdown
+                } else {
+                    CountdownData {
+                        mode: "workEnd".to_string(),
+                        timestamp: 0,
+                        target_info: "请设置下班时间".to_string(),
+                        status: "reset".to_string(),
                     }
+                };
+                
+                // 发送倒计时更新事件
+                if let Err(e) = app_handle.emit("countdown-update", countdown_data) {
+                    eprintln!("Failed to emit countdown-update event: {}", e);
                 }
-                "custom" => {
-                    if let Some(countdown) = calculate_custom_countdown(&pool_clone).await {
-                        countdown
-                    } else {
-                        CountdownData {
-                            mode: "custom".to_string(),
-                            timestamp: 0,
-                            target_info: "请设置目标时间".to_string(),
-                            status: "reset".to_string(),
-                        }
-                    }
-                }
-                _ => {
-                    // current模式不需要发送倒计时数据
-                    continue;
-                }
-            };
-            
-            // 发送倒计时更新事件
-            if let Err(e) = app_handle.emit("countdown-update", countdown_data) {
-                eprintln!("Failed to emit countdown-update event: {}", e);
             }
         }
     });
@@ -286,34 +196,11 @@ pub async fn start_countdown_timer(
 pub async fn reset_work_end_countdown_to_next_day(
     pool: State<'_, SqlitePool>,
 ) -> Result<(), String> {
-    println!("🔄 [Rust] reset_work_end_countdown_to_next_day 开始执行");
-    
     // 加载当前配置
     let config = match crate::config::load_countdown_config_from_db_internal(pool.inner()).await {
         Ok(config) => config,
-        Err(e) => {
-            println!("❌ [Rust] 无法加载配置: {}", e);
-            return Err(format!("无法加载配置: {}", e));
-        }
+        Err(e) => return Err(format!("无法加载配置: {}", e)),
     };
-    
-    // 如果有下班时间配置，将其推迟到明天
-    if !config.work_end_time.is_empty() {
-        // 解析当前下班时间
-        if let Ok(work_time) = chrono::NaiveTime::parse_from_str(&config.work_end_time, "%H:%M") {
-            let now = chrono::Local::now();
-            let tomorrow = now.date_naive() + chrono::Duration::days(1);
-            let tomorrow_work_end = tomorrow.and_time(work_time);
-            
-            println!("🔄 [Rust] 将下班时间从今天 {} 推迟到明天 {}", 
-                config.work_end_time, 
-                tomorrow_work_end.format("%Y-%m-%d %H:%M:%S")
-            );
-            
-            // 这里我们不修改配置中的时间，而是通过其他方式标记重置
-            // 可以考虑添加一个重置标记或者修改状态
-        }
-    }
     
     // 记录重置事件到数据库
     let _ = save_countdown_record(
@@ -324,48 +211,5 @@ pub async fn reset_work_end_countdown_to_next_day(
     )
     .await;
     
-    println!("✅ [Rust] 下班倒计时重置完成");
-    Ok(())
-}
-
-// 重置自定义倒计时
-#[tauri::command]
-pub async fn reset_custom_countdown(
-    pool: State<'_, SqlitePool>,
-) -> Result<(), String> {
-    println!("🔄 [Rust] reset_custom_countdown 开始执行");
-    
-    // 加载当前配置
-    let mut config = match crate::config::load_countdown_config_from_db_internal(pool.inner()).await {
-        Ok(config) => config,
-        Err(e) => {
-            println!("❌ [Rust] 无法加载配置: {}", e);
-            return Err(format!("无法加载配置: {}", e));
-        }
-    };
-    
-    // 清空自定义倒计时目标
-    if !config.custom_countdown.target.is_empty() {
-        println!("🔄 [Rust] 清空自定义倒计时目标: {}", config.custom_countdown.target);
-        config.custom_countdown.target = String::new();
-        config.custom_countdown.name = "自定义事件".to_string();
-        
-        // 保存更新后的配置
-        if let Err(e) = crate::config::save_countdown_config_to_db(pool.clone(), config).await {
-            println!("❌ [Rust] 保存配置失败: {}", e);
-            return Err(format!("保存配置失败: {}", e));
-        }
-    }
-    
-    // 记录重置事件到数据库
-    let _ = save_countdown_record(
-        pool.clone(),
-        "custom_reset".to_string(),
-        Some(format!("重置自定义倒计时: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))),
-        None,
-    )
-    .await;
-    
-    println!("✅ [Rust] 自定义倒计时重置完成");
     Ok(())
 }

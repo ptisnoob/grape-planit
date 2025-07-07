@@ -3,8 +3,6 @@ use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, PhysicalPosition};
-use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, GlobalShortcutExt};
-
 // 导入自定义模块
 pub mod config;
 pub mod countdown;
@@ -322,7 +320,6 @@ pub fn run() {
             countdown::update_countdown_config,
             countdown::start_countdown_timer,
             countdown::reset_work_end_countdown_to_next_day,
-            countdown::reset_custom_countdown,
             config::load_countdown_config_from_db,
             config::save_countdown_config_to_db,
             database::save_countdown_record,

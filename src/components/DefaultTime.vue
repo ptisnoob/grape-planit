@@ -25,12 +25,7 @@
                         ✏️
                     </button>
                 </div>
-                <div class="countdown-actions" v-else-if="modeStore.currentMode === 'custom'">
-                    <button class="action-btn" @click="openSettings">
-                        <i class="icon-settings"></i>
-                        设置
-                    </button>
-                </div>
+
             </div>
 
             <!-- 最后倒计时效果 -->
@@ -46,8 +41,7 @@
             <WorkEndSettings :visible="showWorkEndSettings" :work-end-time="workEndTime" @close="closeWorkEndSettings"
                 @saved="handleWorkEndSaved" />
 
-            <!-- 自定义倒计时设置弹窗 -->
-            <CustomCountdownSettings :visible="showSettings" :custom-countdown="customCountdown" @close="closeSettings" />
+
         </div>
     </WeatherBackground>
 </template>
@@ -56,7 +50,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import WorkEndSettings from './WorkEndSettings.vue'
-import CustomCountdownSettings from './CustomCountdownSettings.vue'
+
 import WeatherBackground from './WeatherBackground.vue'
 import { CountdownConfig, CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
@@ -90,15 +84,10 @@ const config = ref<CountdownConfig | null>(null)
 const modeStore = useModeStore()
 const { loadConfigFromDb, updateCountdownConfig: updateConfigInDb } = useDatabase()
 
-const showSettings = ref(false)
 const showWorkEndSettings = ref(false)
 
 // 倒计时设置
 const workEndTime = ref('')
-const customCountdown = ref({
-    name: '自定义事件',
-    target: ''
-})
 const beforeTime = ref(60)
 
 // 最后倒计时状态
@@ -119,9 +108,7 @@ const displayTime = computed(() => {
     } else if (countdownData.value) {
         // 如果倒计时已结束（finished状态）
         if (countdownData.value.status === 'finished') {
-            if (countdownData.value.mode === 'custom') {
-                return '已结束'
-            } else if (countdownData.value.mode === 'workEnd') {
+            if (countdownData.value.mode === 'workEnd') {
                 return '下班'
             }
         }
@@ -174,7 +161,7 @@ const shouldShowFinalCountdown = computed(() => {
 const finalCountdownNumber = computed(() => {
     if (shouldShowFinalCountdown.value && countdownData.value) {
         if (countdownData.value.status === 'finished') {
-            // 下班倒计时结束显示"下班"，自定义倒计时结束显示0
+            // 下班倒计时结束显示"下班"
             return countdownData.value.mode === 'workEnd' ? '下班' : 0
         }
         return Math.max(0, countdownData.value.timestamp)
@@ -202,7 +189,7 @@ const loadConfig = async () => {
         config.value = rustConfig
         showSeconds.value = rustConfig.showSeconds
         workEndTime.value = rustConfig.workEndTime
-        customCountdown.value = rustConfig.customCountdown
+
         // 更新beforeTime为配置中的值（转换为秒）
         beforeTime.value = (rustConfig.finalCountdownMinutes || 1) * 60
     } catch (error) {
@@ -235,13 +222,7 @@ const handleWorkEndSaved = async () => {
     await loadConfig()
 }
 
-const openSettings = () => {
-    showSettings.value = true
-}
 
-const closeSettings = () => {
-    showSettings.value = false
-}
 
 // 处理"知道了"按钮点击
 const handleGotIt = async () => {
@@ -277,23 +258,7 @@ const handleGotIt = async () => {
         }
     }
 
-    // 如果是自定义倒计时结束，重置倒计时
-    if (countdownData.value?.mode === 'custom' && countdownData.value?.status === 'finished') {
-        try {
-            await databaseApi.countdown.resetCustom()
-            console.log('✅ [前端] 自定义倒计时已重置')
-            
-            // 重置前端状态
-            countdownData.value = {
-                mode: 'custom',
-                timestamp: 0,
-                target_info: '请设置目标时间',
-                status: 'reset'
-            }
-        } catch (error) {
-            console.error('❌ [前端] 重置自定义倒计时失败:', error)
-        }
-    }
+
 }
 
 // 开始结束状态保持定时器
@@ -312,7 +277,9 @@ const startEndStateKeepTimer = () => {
 // 设置倒计时事件监听
 const setupCountdownListener = async () => {
     try {
+        console.log('🎧 [DefaultTime] 开始设置倒计时事件监听器')
         unlistenCountdown = await listen('countdown-update', (event) => {
+            console.log('📨 [DefaultTime] 收到倒计时更新事件:', event.payload)
             const newData = event.payload as CountdownData
             const wasInFinalCountdown = shouldShowFinalCountdown.value
             const oldData = countdownData.value
@@ -320,41 +287,29 @@ const setupCountdownListener = async () => {
             // 如果当前处于结束状态，忽略后端的倒计时更新
             // 这样可以避免重置后立即被后端数据覆盖
             if (isInEndState.value) {
-                console.log('🚫 [前端] 当前处于结束状态，忽略倒计时更新')
+                console.log('🚫 [DefaultTime] 当前处于结束状态，忽略倒计时更新')
                 return
             }
             
-            countdownData.value = newData
+            // 只有在下班倒计时模式下才处理下班倒计时数据
+            if (modeStore.currentMode === 'workEnd' && newData.mode === 'workEnd') {
+                console.log('✅ [DefaultTime] 更新下班倒计时数据')
+                countdownData.value = newData
 
-            // 检查是否刚进入最后倒计时阶段
-            if (!wasInFinalCountdown && shouldShowFinalCountdown.value) {
-                isInFinalCountdown.value = true
-                // 这里可以添加音效或其他效果
-                console.log('进入最后倒计时阶段！')
-
-                // 只有在当前模式为'current'时才自动切换到对应的倒计时模式
-                // 这样可以避免干扰用户的手动模式选择
-                if (newData.mode && modeStore.currentMode === 'current' && newData.mode !== 'current') {
-                    console.log(`自动切换模式从 ${modeStore.currentMode} 到 ${newData.mode}`)
-                    modeStore.switchMode(newData.mode)
+                // 检查是否刚进入最后倒计时阶段
+                if (!wasInFinalCountdown && shouldShowFinalCountdown.value) {
+                    isInFinalCountdown.value = true
+                    console.log('🔥 [DefaultTime] 进入最后倒计时阶段！')
                 }
-            }
 
-            // 检查自定义倒计时是否从finished状态变为reset状态（重置）
-            if (oldData && oldData.mode === 'custom' && oldData.status === 'finished' &&
-                newData.mode === 'custom' && newData.status === 'reset') {
-                console.log('自定义倒计时已重置')
-                isInFinalCountdown.value = false
-            }
-
-            // 检查是否倒计时结束
-            if (newData.status === 'finished' && oldData?.status !== 'finished') {
-                console.log('倒计时结束！')
-                // 进入结束状态
-                isInEndState.value = true
-                // 开始结束状态保持定时器
-                startEndStateKeepTimer()
-                // 这里可以添加结束音效或其他效果
+                // 检查是否倒计时结束
+                if (newData.status === 'finished' && oldData?.status !== 'finished') {
+                    console.log('🎉 [DefaultTime] 下班倒计时结束！')
+                    // 进入结束状态
+                    isInEndState.value = true
+                    // 开始结束状态保持定时器
+                    startEndStateKeepTimer()
+                }
             }
         })
     } catch (error) {
@@ -408,7 +363,7 @@ onUnmounted(() => {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 30px;
+    padding: 30px 0;
     text-align: center;
     overflow: hidden;
     position: relative;

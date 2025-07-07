@@ -1,6 +1,6 @@
 <template>
   <div class="top-time-display flex-r">
-    <div class="time-carousel flex-1" :style="{ transform: `translateY(-${currentIndex * 100}%)` }" @click="navToTime">
+    <div class="time-carousel flex-1" :style="{ transform: shouldShowCarousel ? `translateY(-${currentIndex * 100}%)` : 'translateY(0)' }" @click="navToTime">
       <!-- 当前时间 -->
       <div class="time-item current-time">
         <span class="time-text">{{ currentTimeText }}</span>
@@ -9,6 +9,11 @@
       <!-- 倒计时列表 -->
       <div v-for="countdown in countdowns" :key="countdown.id" class="time-item countdown-item">
         <span class="countdown-text">{{ countdown.text }}</span>
+      </div>
+
+      <!-- 当开启下班倒计时但没有倒计时数据时显示占位符 -->
+      <div v-if="shouldShowCarousel && countdowns.length === 0" class="time-item placeholder-item">
+        <span class="placeholder-text">等待下班倒计时...</span>
       </div>
     </div>
     <SettingsBtn />
@@ -21,7 +26,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { useRouter, useRoute } from 'vue-router'
-import { CountdownData } from '@/model/countdown'
+import { CountdownData, CountdownConfig } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
 import { useTime, useCountdown } from '@/composables/useTime'
 import { useCarousel } from '@/composables/useCarousel'
@@ -40,13 +45,24 @@ const route = useRoute()
 const modeStore = useModeStore()
 
 const countdowns = ref<CountdownItem[]>([])
-const totalItems = computed(() => 1 + countdowns.value.length) // 1个当前时间 + 倒计时数量
+const totalItems = computed(() => {
+  // 1个当前时间 + 倒计时数量 + (开启轮播但没有倒计时时的占位符)
+  const baseItems = 1 + countdowns.value.length
+  const hasPlaceholder = shouldShowCarousel.value && countdowns.value.length === 0
+  const total = hasPlaceholder ? baseItems + 1 : baseItems
+  return total
+})
+const countdownConfig = ref<CountdownConfig | null>(null)
+const shouldShowCarousel = computed(() => {
+  return countdownConfig.value?.enableWorkEndCountdown === true
+})
 
 // 记录用户最后手动操作的时间，用于避免自动跳转干扰用户操作
 const lastUserActionTime = ref(0)
 const USER_ACTION_COOLDOWN = 30000 // 30秒内不进行自动跳转
 
 let unlistenCountdown: (() => void) | null = null
+let unlistenConfigUpdate: (() => void) | null = null
 
 // 使用时间相关的 composable
 const { currentTimeTextForTop, startTimer, stopTimer, updateTimeForTopDisplay } = useTime()
@@ -59,6 +75,17 @@ const { currentIndex, startCarousel, stopCarousel, restartCarousel } = useCarous
 const currentTimeText = currentTimeTextForTop
 
 
+
+// 设置配置更新监听
+const setupConfigListener = async () => {
+  try {
+    unlistenConfigUpdate = await listen('config-updated', async () => {
+      await loadCountdownConfig()
+    })
+  } catch (error) {
+    console.error('Failed to setup config listener:', error)
+  }
+}
 
 // 设置倒计时监听
 const setupCountdownListener = async () => {
@@ -90,16 +117,10 @@ const setupCountdownListener = async () => {
           
           if (shouldAutoSwitch) {
             // 自动切换到对应的倒计时页面
-            console.log(`倒计时${newData.mode}进入最终阶段，自动切换页面`)
             if (newData.mode === 'workEnd') {
               modeStore.switchMode('workEnd')
               router.push('/')
-            } else if (newData.mode === 'custom') {
-              modeStore.switchMode('custom')
-              router.push('/')
             }
-          } else {
-            console.log(`倒计时${newData.mode}进入最终阶段，但用户最近有操作，跳过自动切换`)
           }
         }
       } else {
@@ -111,10 +132,9 @@ const setupCountdownListener = async () => {
         })
       }
 
-      // 只有在倒计时数量发生变化时才重新启动轮播
+      // 只有在开启下班倒计时且倒计时数量发生变化时才重新启动轮播
       const currentCount = countdowns.value.length
-      if (currentCount !== previousCount) {
-        console.log(`倒计时数量变化：${previousCount} -> ${currentCount}，重新启动轮播`)
+      if (currentCount !== previousCount && shouldShowCarousel.value) {
         restartCarousel()
       }
     })
@@ -123,9 +143,20 @@ const setupCountdownListener = async () => {
   }
 }
 
+// 加载倒计时配置
+const loadCountdownConfig = async () => {
+  try {
+    countdownConfig.value = await databaseApi.countdown.load()
+  } catch (error) {
+    console.error('Failed to load countdown config:', error)
+  }
+}
+
 // 初始化倒计时数据
 const initCountdowns = async () => {
   try {
+    // 先加载配置
+    await loadCountdownConfig()
     // 启动倒计时服务
     await databaseApi.countdown.startTimer()
   } catch (error) {
@@ -141,17 +172,31 @@ const navToTime = () => {
 watch(() => route.path, (newPath, oldPath) => {
   if (newPath !== oldPath) {
     lastUserActionTime.value = Date.now()
-    console.log(`用户手动切换页面: ${oldPath} -> ${newPath}，记录操作时间`)
+  }
+})
+
+// 监听轮播显示状态变化
+watch(shouldShowCarousel, (newValue, oldValue) => {
+  if (newValue !== oldValue) {
+    if (newValue) {
+      startCarousel()
+    } else {
+      stopCarousel()
+    }
   }
 })
 
 onMounted(async () => {
   startTimer(updateTimeForTopDisplay)
 
+  await setupConfigListener()
   await setupCountdownListener()
   await initCountdowns()
 
-  startCarousel()
+  // 只有在开启下班倒计时时才启动轮播
+  if (shouldShowCarousel.value) {
+    startCarousel()
+  }
   
   // 初始化用户操作时间
   lastUserActionTime.value = Date.now()
@@ -162,6 +207,9 @@ onUnmounted(() => {
   stopCarousel()
   if (unlistenCountdown) {
     unlistenCountdown()
+  }
+  if (unlistenConfigUpdate) {
+    unlistenConfigUpdate()
   }
 })
 </script>
@@ -219,6 +267,22 @@ onUnmounted(() => {
   color: var(--accent-color);
   font-weight: 600;
   border-left: 3px solid var(--accent-color);
+}
+
+.placeholder-item {
+  color: var(--text-secondary);
+  font-weight: 400;
+  border-left: 3px solid var(--text-secondary);
+  opacity: 0.7;
+}
+
+.placeholder-text {
+  font-size: 14px;
+  font-weight: 400;
+  text-align: center;
+  white-space: nowrap;
+  user-select: none;
+  font-style: italic;
 }
 
 /* 动画效果 */

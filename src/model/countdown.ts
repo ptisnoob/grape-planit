@@ -1,17 +1,15 @@
 // 类型定义
 
-export interface CustomCountdown {
-    name: string
-    target: string
-}
+
 
 export interface CountdownConfig {
     workEndTime: string
-    customCountdown: CustomCountdown
     showSeconds: boolean
     timeDisplayMode: string
+    enableWorkEndCountdown: boolean
     finalCountdownMinutes: number  // 进入最后倒计时的分钟数
     endStateKeepMinutes: number    // 结束状态保持的分钟数
+    workDays: string
 }
 
 export interface CountdownData {
@@ -41,12 +39,8 @@ export interface DatabaseResult<T = any> {
 
 // Tauri命令接口
 export interface DatabaseCommands {
-    loadConfigFromDb(): Promise<CountdownConfig>;
-    saveConfigToDb(config: CountdownConfig): Promise<void>;
-    saveCountdownRecord(
-        mode: string,
-        targetTime?: string,
-        duration?: number
-    ): Promise<void>;
-    updateCountdownConfig(config: CountdownConfig): Promise<void>;
+  loadCountdownConfig(): Promise<CountdownConfig>;
+  saveCountdownConfig(config: CountdownConfig): Promise<void>;
+  saveCountdownRecord(record: CountdownRecord): Promise<void>;
+  updateCountdownConfig(config: Partial<CountdownConfig>): Promise<void>;
 }

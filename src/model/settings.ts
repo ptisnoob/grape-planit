@@ -16,18 +16,7 @@ export interface AISettings {
   model: string
 }
 
-// 倒计时配置类型定义
-export interface CustomCountdown {
-  name: string
-  target: string
-}
 
-export interface CountdownConfig {
-  workEndTime: string
-  customCountdown: CustomCountdown
-  showSeconds: boolean
-  timeDisplayMode: string
-}
 
 // 快捷键设置类型定义
 export interface ShortcutSettings {

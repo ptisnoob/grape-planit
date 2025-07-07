@@ -62,13 +62,7 @@ export class DatabaseApi {
     return response.success;
   }
 
-  /**
-   * 重置自定义倒计时
-   */
-  static async resetCustomCountdown(): Promise<boolean> {
-    const response = await api.call('reset_custom_countdown');
-    return response.success;
-  }
+
 
   /**
    * 从数据库加载窗口设置
@@ -98,7 +92,6 @@ export const databaseApi = {
     saveRecord: DatabaseApi.saveCountdownRecord,
     startTimer: DatabaseApi.startCountdownTimer,
     resetWorkEndToNextDay: DatabaseApi.resetWorkEndToNextDay,
-    resetCustom: DatabaseApi.resetCustomCountdown,
   },
   window: {
     load: DatabaseApi.loadWindowSettings,

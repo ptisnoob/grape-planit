@@ -19,23 +19,22 @@ pub struct WeatherSettings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct CustomCountdown {
-    #[serde(rename = "name")]
-    #[sqlx(rename = "custom_countdown_name")]
-    pub name: String,
-    #[serde(rename = "target")]
-    #[sqlx(rename = "custom_countdown_target")]
-    pub target: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct CountdownConfig {
     #[serde(rename = "workEndTime")]
     #[sqlx(rename = "work_end_time")]
     pub work_end_time: String,
-    #[serde(rename = "customCountdown")]
-    #[sqlx(flatten)]
-    pub custom_countdown: CustomCountdown,
+    #[serde(rename = "enableWorkEndCountdown")]
+    #[sqlx(rename = "enable_work_end_countdown")]
+    pub enable_work_end_countdown: bool,
+    #[serde(rename = "finalCountdownMinutes")]
+    #[sqlx(rename = "final_countdown_minutes")]
+    pub final_countdown_minutes: i32,
+    #[serde(rename = "endStateKeepMinutes")]
+    #[sqlx(rename = "end_state_keep_minutes")]
+    pub end_state_keep_minutes: i32,
+    #[serde(rename = "workDays")]
+    #[sqlx(rename = "work_days")]
+    pub work_days: String, // "single" 单休, "double" 双休
     #[serde(rename = "showSeconds")]
     #[sqlx(rename = "show_seconds")]
     pub show_seconds: bool,
@@ -77,12 +76,12 @@ pub struct TodoColorSettings {
 pub fn get_default_countdown_config() -> CountdownConfig {
     CountdownConfig {
         work_end_time: String::new(),
-        custom_countdown: CustomCountdown {
-            name: "自定义事件".to_string(),
-            target: String::new(),
-        },
+        enable_work_end_countdown: false,
+        final_countdown_minutes: 1,
+        end_state_keep_minutes: 5,
+        work_days: "double".to_string(), // 默认双休
         show_seconds: true,
-        time_display_mode: "remaining".to_string(),
+        time_display_mode: "current".to_string(),
     }
 }
 
@@ -150,7 +149,7 @@ pub async fn load_countdown_config_from_db_internal(
     pool: &SqlitePool,
 ) -> Result<CountdownConfig, sqlx::Error> {
     let result = sqlx::query_as::<_, CountdownConfig>(
-        "SELECT work_end_time, custom_countdown_name, custom_countdown_target, show_seconds, time_display_mode FROM countdown_config ORDER BY id DESC LIMIT 1",
+        "SELECT work_end_time, enable_work_end_countdown, final_countdown_minutes, end_state_keep_minutes, work_days, show_seconds, time_display_mode FROM countdown_config ORDER BY id DESC LIMIT 1",
     )
     .fetch_optional(pool)
     .await?;
@@ -174,10 +173,12 @@ pub async fn save_countdown_config_to_db(pool: State<'_, SqlitePool>, config: Co
             e.to_string()
         })?;
     
-    sqlx::query("INSERT INTO countdown_config (work_end_time, custom_countdown_name, custom_countdown_target, show_seconds, time_display_mode) VALUES (?, ?, ?, ?, ?)")
+    sqlx::query("INSERT INTO countdown_config (work_end_time, enable_work_end_countdown, final_countdown_minutes, end_state_keep_minutes, work_days, show_seconds, time_display_mode) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .bind(&config.work_end_time)
-        .bind(&config.custom_countdown.name)
-        .bind(&config.custom_countdown.target)
+        .bind(config.enable_work_end_countdown)
+        .bind(config.final_countdown_minutes)
+        .bind(config.end_state_keep_minutes)
+        .bind(&config.work_days)
         .bind(config.show_seconds)
         .bind(&config.time_display_mode)
         .execute(pool.inner())
@@ -242,7 +243,7 @@ pub async fn save_shortcut_settings_to_db(pool: State<'_, SqlitePool>, settings:
 
 #[tauri::command]
 pub async fn register_global_shortcuts(app: tauri::AppHandle, settings: ShortcutSettings) -> Result<(), String> {
-    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, GlobalShortcutExt, ShortcutState};
+    use tauri_plugin_global_shortcut::{Code, Modifiers, GlobalShortcutExt};
     use tauri::Emitter;
     
     println!("🔧 [Rust] 注册全局快捷键: {:?}", settings);

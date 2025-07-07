@@ -150,7 +150,33 @@ pub fn get_migrations() -> Vec<Migration> {
                   ALTER TABLE weather_settings_new RENAME TO weather_settings;",
             kind: MigrationKind::Up,
         },
-        // Migration version 8 removed - recent_days and default_startup columns are now included in the initial window_settings table creation
+        Migration {
+            version: 10,
+            description: "update_countdown_config_table_structure",
+            sql: "CREATE TABLE IF NOT EXISTS countdown_config_new (
+                id INTEGER PRIMARY KEY,
+                work_end_time TEXT NOT NULL DEFAULT '',
+                enable_work_end_countdown BOOLEAN NOT NULL DEFAULT 0,
+                final_countdown_minutes INTEGER NOT NULL DEFAULT 1,
+                end_state_keep_minutes INTEGER NOT NULL DEFAULT 5,
+                work_days TEXT NOT NULL DEFAULT 'double',
+                show_seconds BOOLEAN NOT NULL DEFAULT 1,
+                time_display_mode TEXT NOT NULL DEFAULT 'current',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT OR IGNORE INTO countdown_config_new (id, work_end_time, enable_work_end_countdown, final_countdown_minutes, end_state_keep_minutes, work_days, show_seconds, time_display_mode, created_at, updated_at)
+            SELECT id, work_end_time, 
+                   COALESCE((SELECT 1 FROM countdown_config c2 WHERE c2.id = countdown_config.id AND c2.work_end_time != ''), 0) as enable_work_end_countdown,
+                   1 as final_countdown_minutes,
+                   5 as end_state_keep_minutes,
+                   'double' as work_days,
+                   show_seconds, time_display_mode, created_at, updated_at
+            FROM countdown_config WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='countdown_config');
+            DROP TABLE IF EXISTS countdown_config;
+            ALTER TABLE countdown_config_new RENAME TO countdown_config;",
+            kind: MigrationKind::Up,
+        },
 
     ]
 }
