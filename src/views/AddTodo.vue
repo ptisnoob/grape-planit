@@ -107,10 +107,11 @@
 
 <script lang="ts" setup>
 import { ref, onMounted } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
 import { TodoVo } from '@/model/todo';
-import defaultAIService from "@/common/ai"
+import defaultAIService from "@/common/ai";
+import { todoApi } from '@/api/todo';
+import { windowApi } from '@/api/services';
 const router = useRouter();
 
 // AI相关状态
@@ -195,7 +196,7 @@ const checkAIConfiguration = async () => {
 
 // 打开设置页面
 const openSettings = () => {
-    invoke('open_settings_window').catch(error => {
+    windowApi.showSettings().catch(error => {
         console.error('打开设置窗口失败:', error)
     })
 }
@@ -240,16 +241,18 @@ const saveTodo = async () => {
             return;
         }
 
-        await invoke('add_todo', {
-            params: {
-                title: todo.value.title,
-                startTime: startTimeTimestamp,
-                endTime: endTimeTimestamp,
-                notes: todo.value.notes || null,
-                level: todo.value.level,
-                cycle: todo.value.cycle
-            }
+        const success = await todoApi.add({
+            title: todo.value.title,
+            startTime: startTimeTimestamp,
+            endTime: endTimeTimestamp,
+            notes: todo.value.notes || null,
+            level: todo.value.level,
+            cycle: todo.value.cycle
         });
+        
+        if (!success) {
+            throw new Error('保存待办事项失败');
+        }
         // 保存成功后可以跳转到列表页或显示成功信息
         router.push('/list');
     } catch (error) {

@@ -1,6 +1,6 @@
-import { invoke } from '@tauri-apps/api/core';
 import { useTheme } from '@/composables/useTheme';
 import { WeatherSettings, WeatherInfo, WeatherType } from '@/model/weather';
+import { weatherApi } from '@/api/services';
 
 // 重新导出类型以保持向后兼容
 export type { WeatherSettings, WeatherInfo, WeatherType } from '@/model/weather';
@@ -28,7 +28,7 @@ export class WeatherService {
    */
   async loadSettings(): Promise<WeatherSettings | null> {
     try {
-      this.settings = await invoke<WeatherSettings>('load_weather_settings_from_db');
+      this.settings = await weatherApi.load();
       return this.settings;
     } catch (error) {
       console.error('加载天气设置失败:', error);
@@ -193,7 +193,7 @@ export const weatherService = new WeatherService();
 // 导出工具函数
 export const getWeatherSettings = async (): Promise<WeatherSettings | null> => {
   try {
-    return await invoke<WeatherSettings>('load_weather_settings_from_db');
+    return await weatherApi.load();
   } catch (error) {
     console.error('获取天气设置失败:', error);
     return null;
@@ -202,7 +202,7 @@ export const getWeatherSettings = async (): Promise<WeatherSettings | null> => {
 
 export const saveWeatherSettings = async (settings: WeatherSettings): Promise<boolean> => {
   try {
-    await invoke('save_weather_settings_to_db', { settings });
+    await weatherApi.save(settings);
     return true;
   } catch (error) {
     console.error('保存天气设置失败:', error);

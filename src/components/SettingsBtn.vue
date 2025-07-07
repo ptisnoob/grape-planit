@@ -5,11 +5,11 @@
 </template>
 
 <script setup lang="ts">
-import { invoke } from '@tauri-apps/api/core';
+import { windowApi } from '@/api/services';
 
 const openSettings = async () => {
     try {
-        await invoke('show_settings_window');
+        await windowApi.showSettings();
     } catch (error) {
         console.error('Failed to open settings window:', error);
     }

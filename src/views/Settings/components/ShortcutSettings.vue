@@ -9,36 +9,24 @@
             <span class="shortcut-description">快速切换主窗口的显示状态</span>
           </div>
           <div class="shortcut-input-container">
-            <div 
-              class="shortcut-display"
-              :class="{ 
-                recording: recordingKey === 'toggle_window',
-                'has-value': currentSettings.toggle_window
-              }"
-              @click="startRecording('toggle_window')"
-              @keydown="handleKeyDown($event, 'toggle_window')"
-              tabindex="0"
-            >
+            <div class="shortcut-display" :class="{
+              recording: recordingKey === 'toggle_window',
+              'has-value': currentSettings.toggle_window
+            }" @click="startRecordingShortcut('toggle_window')" @keydown="handleKeyDown($event, 'toggle_window')"
+              tabindex="0">
               <span v-if="recordingKey === 'toggle_window'" class="recording-text">
                 录制中
               </span>
               <span v-else-if="currentSettings.toggle_window" class="shortcut-keys">
-                <span 
-                  v-for="(key, index) in formatShortcutKeys(currentSettings.toggle_window)"
-                  :key="index"
-                  class="key-badge"
-                >
+                <span v-for="(key, index) in formatShortcutKeys(currentSettings.toggle_window)" :key="index"
+                  class="key-badge">
                   {{ key }}
                 </span>
               </span>
               <span v-else class="placeholder-text">点击设置</span>
             </div>
-            <button 
-              @click="resetShortcut('toggle_window')"
-              class="reset-btn"
-              title="重置为默认"
-              :disabled="recordingKey === 'toggle_window'"
-            >
+            <button @click="resetShortcut('toggle_window')" class="reset-btn" title="重置为默认"
+              :disabled="recordingKey === 'toggle_window'">
               ×
             </button>
           </div>
@@ -50,36 +38,24 @@
             <span class="shortcut-description">快速打开添加待办事项界面</span>
           </div>
           <div class="shortcut-input-container">
-            <div 
-              class="shortcut-display"
-              :class="{ 
-                recording: recordingKey === 'quick_add_todo',
-                'has-value': currentSettings.quick_add_todo
-              }"
-              @click="startRecording('quick_add_todo')"
-              @keydown="handleKeyDown($event, 'quick_add_todo')"
-              tabindex="0"
-            >
+            <div class="shortcut-display" :class="{
+              recording: recordingKey === 'quick_add_todo',
+              'has-value': currentSettings.quick_add_todo
+            }" @click="startRecordingShortcut('quick_add_todo')" @keydown="handleKeyDown($event, 'quick_add_todo')"
+              tabindex="0">
               <span v-if="recordingKey === 'quick_add_todo'" class="recording-text">
                 录制中
               </span>
               <span v-else-if="currentSettings.quick_add_todo" class="shortcut-keys">
-                <span 
-                  v-for="(key, index) in formatShortcutKeys(currentSettings.quick_add_todo)"
-                  :key="index"
-                  class="key-badge"
-                >
+                <span v-for="(key, index) in formatShortcutKeys(currentSettings.quick_add_todo)" :key="index"
+                  class="key-badge">
                   {{ key }}
                 </span>
               </span>
               <span v-else class="placeholder-text">点击设置快捷键</span>
             </div>
-            <button 
-              @click="resetShortcut('quick_add_todo')"
-              class="reset-btn"
-              title="重置为默认"
-              :disabled="recordingKey === 'quick_add_todo'"
-            >
+            <button @click="resetShortcut('quick_add_todo')" class="reset-btn" title="重置为默认"
+              :disabled="recordingKey === 'quick_add_todo'">
               ×
             </button>
           </div>
@@ -93,8 +69,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, onUnmounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { shortcutApi } from '@/api/services'
 import { ShortcutSettings } from '@/model/settings'
+import { useRecordingTimer } from '@/composables/useTimer'
 
 // 当前快捷键设置
 const currentSettings = ref<ShortcutSettings>({
@@ -110,22 +87,19 @@ const defaultSettings: ShortcutSettings = {
 
 // 录制状态管理
 const recordingKey = ref<keyof ShortcutSettings | null>(null)
-const recordingTimeout = ref<NodeJS.Timeout | null>(null)
+
+// 使用录制定时器管理
+const { startRecording, stopRecording: stopRecordingTimer } = useRecordingTimer()
 
 // 开始录制快捷键
-const startRecording = async (type: keyof ShortcutSettings) => {
+const startRecordingShortcut = async (type: keyof ShortcutSettings) => {
   recordingKey.value = type
-  
-  // 清除之前的超时
-  if (recordingTimeout.value) {
-    clearTimeout(recordingTimeout.value)
-  }
-  
+
   // 5秒后自动停止录制
-  recordingTimeout.value = setTimeout(() => {
+  startRecording(() => {
     stopRecording()
   }, 5000)
-  
+
   await nextTick()
   // 聚焦到对应的显示区域
   const element = document.querySelector(`[tabindex="0"]`) as HTMLElement
@@ -137,36 +111,33 @@ const startRecording = async (type: keyof ShortcutSettings) => {
 // 停止录制
 const stopRecording = () => {
   recordingKey.value = null
-  if (recordingTimeout.value) {
-    clearTimeout(recordingTimeout.value)
-    recordingTimeout.value = null
-  }
+  stopRecordingTimer()
 }
 
 // 处理按键事件
 const handleKeyDown = (event: KeyboardEvent, key: keyof ShortcutSettings) => {
   if (recordingKey.value !== key) return
-  
+
   event.preventDefault()
   event.stopPropagation()
-  
+
   // 忽略单独的修饰键
   if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
     return
   }
-  
+
   const keys: string[] = []
-  
+
   // 修饰键
   if (event.ctrlKey) keys.push('Ctrl')
   if (event.altKey) keys.push('Alt')
   if (event.shiftKey) keys.push('Shift')
   if (event.metaKey) keys.push('Win')
-  
+
   // 主键
   if (event.key && !['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
     let mainKey = event.key.toUpperCase()
-    
+
     // 特殊键名映射
     const keyMap: { [key: string]: string } = {
       ' ': 'Space',
@@ -182,14 +153,14 @@ const handleKeyDown = (event: KeyboardEvent, key: keyof ShortcutSettings) => {
       'PAGEUP': 'PageUp',
       'PAGEDOWN': 'PageDown'
     }
-    
+
     if (keyMap[mainKey]) {
       mainKey = keyMap[mainKey]
     }
-    
+
     keys.push(mainKey)
   }
-  
+
   if (keys.length >= 2) { // 至少需要一个修饰键
     const shortcut = keys.join('+')
     currentSettings.value[key] = shortcut
@@ -207,9 +178,7 @@ const resetShortcut = async (key: keyof ShortcutSettings) => {
 // 注册全局快捷键
 const registerGlobalShortcuts = async () => {
   try {
-    await invoke('register_global_shortcuts', {
-      settings: currentSettings.value
-    })
+    await shortcutApi.register(currentSettings.value)
     console.log('全局快捷键已注册')
   } catch (error) {
     console.error('注册全局快捷键失败:', error)
@@ -220,11 +189,11 @@ const registerGlobalShortcuts = async () => {
 const saveSettings = async () => {
   try {
     console.log('🔧 [前端] 开始保存快捷键设置到数据库:', currentSettings.value)
-    await invoke('save_shortcut_settings_to_db', { settings: currentSettings.value })
-    
+    await shortcutApi.save(currentSettings.value)
+
     // 注册全局快捷键
     await registerGlobalShortcuts()
-    
+
     console.log('✅ [前端] 快捷键设置已保存到数据库')
   } catch (error) {
     console.error('❌ [前端] 保存快捷键设置失败:', error)
@@ -234,12 +203,13 @@ const saveSettings = async () => {
 // 加载设置
 const loadSettings = async () => {
   try {
-    const settings = await invoke<ShortcutSettings>('load_shortcut_settings_from_db')
+    const settings = await shortcutApi.load()
+    if (!settings) return
     currentSettings.value = settings
-    
+
     // 注册全局快捷键
     await registerGlobalShortcuts()
-    
+
     console.log('快捷键设置加载成功:', settings)
   } catch (error) {
     console.error('加载快捷键设置失败:', error)
@@ -296,9 +266,7 @@ const formatShortcutKeys = (shortcut: string) => {
 // 组件卸载时清理
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
-  if (recordingTimeout.value) {
-    clearTimeout(recordingTimeout.value)
-  }
+  // 录制定时器会在useRecordingTimer的onUnmounted中自动清理
 })
 </script>
 
@@ -504,10 +472,14 @@ onUnmounted(() => {
 }
 
 @keyframes blink {
-  0%, 50% {
+
+  0%,
+  50% {
     opacity: 1;
   }
-  51%, 100% {
+
+  51%,
+  100% {
     opacity: 0.6;
   }
 }

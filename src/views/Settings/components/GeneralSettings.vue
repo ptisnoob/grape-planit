@@ -2,11 +2,7 @@
   <div class="general-settings">
     <div class="settings-section">
       <h3 class="section-title">主题设置</h3>
-      <ConfigTip 
-        icon="🎨" 
-        title="主题设置说明" 
-        description="选择应用的外观主题。自动模式会根据系统设置自动切换明暗主题。" 
-      />
+      <ConfigTip icon="🎨" title="主题设置说明" description="选择应用的外观主题。自动模式会根据系统设置自动切换明暗主题。" />
       <div class="theme-options">
         <label v-for="option in themeOptions" :key="option.value" class="theme-option"
           :class="{ active: currentSettings.theme === option.value }">
@@ -36,15 +32,11 @@
 
     <div class="settings-section">
       <h3 class="section-title">窗口位置</h3>
-      <ConfigTip 
-        icon="📍" 
-        title="窗口位置设置" 
-        description="设置主窗口在屏幕上的显示位置。建议选择不影响日常工作的角落位置。" 
-      />
+      <ConfigTip icon="📍" title="窗口位置设置" description="设置主窗口在屏幕上的显示位置。建议选择不影响日常工作的角落位置。" />
       <div class="position-grid">
         <button v-for="option in positionOptions" :key="option.value" class="position-btn"
           :class="{ active: currentSettings.window_position === option.value }"
-          @click="handlePositionChange(option.value)">
+          @click="handlePositionChange(option.value as WindowPosition)">
           {{ option.label }}
         </button>
       </div>
@@ -52,11 +44,7 @@
 
     <div class="settings-section">
       <h3 class="section-title">窗口透明度</h3>
-      <ConfigTip 
-        icon="👻" 
-        title="透明度调节" 
-        description="调整窗口的透明度。较低的透明度可以让窗口更好地融入桌面背景，但可能影响内容可读性。" 
-      />
+      <ConfigTip icon="👻" title="透明度调节" description="调整窗口的透明度。较低的透明度可以让窗口更好地融入桌面背景，但可能影响内容可读性。" />
       <div class="opacity-control">
         <input type="range" min="0.1" max="1" step="0.05" v-model="currentSettings.opacity"
           @input="handleOpacityChange(Number(currentSettings.opacity))" class="opacity-slider">
@@ -66,11 +54,7 @@
 
     <div class="settings-section">
       <h3 class="section-title">窗口选项</h3>
-      <ConfigTip 
-        icon="📌" 
-        title="窗口置顶说明" 
-        description="开启后窗口将始终显示在其他应用程序之上，方便随时查看。" 
-      />
+      <ConfigTip icon="📌" title="窗口置顶说明" description="开启后窗口将始终显示在其他应用程序之上，方便随时查看。" />
       <div class="toggle-options">
         <label class="toggle-option">
           <input type="checkbox" v-model="currentSettings.always_on_top"
@@ -82,11 +66,7 @@
 
     <div class="settings-section">
       <h3 class="section-title">应用设置</h3>
-      <ConfigTip 
-        icon="⚙️" 
-        title="应用行为设置" 
-        description="TODO列表最近事项的范围和启动时默认显示的页面，自动模式会根据是否有最近事项来自动判断。" 
-      />
+      <ConfigTip icon="⚙️" title="应用行为设置" description="TODO列表最近事项的范围和启动时默认显示的页面，自动模式会根据是否有最近事项来自动判断。" />
       <div class="app-settings">
         <div class="setting-item">
           <label class="setting-label">最近事项范围</label>
@@ -96,7 +76,7 @@
             <span class="input-suffix">天</span>
           </div>
         </div>
-        
+
         <div class="setting-item">
           <label class="setting-label">默认启动页面</label>
           <div class="startup-options">
@@ -116,12 +96,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { databaseApi, windowApi, WindowPosition } from '@/api/services'
 import { WindowSettings } from '@/model/settings'
 import { SelOption } from "@/model/public"
 import { useTheme } from '@/composables/useTheme'
 import ConfigTip from '@/components/ConfigTip.vue'
-
 // 当前设置状态
 const currentSettings = ref<WindowSettings>({
   theme: 'auto',
@@ -177,7 +156,7 @@ const startupOptions: SelOption[] = [
 const saveSettings = async () => {
   try {
     console.log('🔧 [前端] 开始保存设置到数据库:', currentSettings.value)
-    await invoke('save_window_settings_to_db', { settings: currentSettings.value })
+    await databaseApi.window.save(currentSettings.value)
     console.log('✅ [前端] 设置已保存到数据库')
   } catch (error) {
     console.error('❌ [前端] 保存设置失败:', error)
@@ -198,10 +177,10 @@ const applyThemeToMainWindow = async (theme: string) => {
     if (theme === 'auto') {
       actualTheme = getSystemTheme()
     }
-    
+
     // 通过JavaScript在主窗口中设置主题
     const script = `document.documentElement.setAttribute('data-theme', '${actualTheme}')`
-    await invoke('eval_script_in_main_window', { script })
+    await windowApi.evalScript(script)
   } catch (error) {
     console.error('应用主题到主窗口失败:', error)
   }
@@ -222,10 +201,10 @@ const handleThemeChange = async (newTheme: string) => {
 }
 
 // 处理窗口位置变更
-const handlePositionChange = async (position: string) => {
+const handlePositionChange = async (position: WindowPosition) => {
   currentSettings.value.window_position = position
   try {
-    await invoke('set_main_window_position', { position })
+    await windowApi.setPosition(position)
     await saveSettings()
     console.log('窗口位置设置成功:', position)
   } catch (error) {
@@ -238,7 +217,7 @@ const handleOpacityChange = async (opacity: number) => {
   console.log('🔧 [前端] 透明度变更触发:', opacity, typeof opacity)
   currentSettings.value.opacity = opacity
   try {
-    await invoke('set_window_opacity', { opacity: currentSettings.value.opacity })
+    await windowApi.setOpacity(currentSettings.value.opacity)
     await saveSettings()
     console.log('✅ [前端] 透明度设置成功:', currentSettings.value.opacity)
   } catch (error) {
@@ -250,7 +229,7 @@ const handleOpacityChange = async (opacity: number) => {
 const handleAlwaysOnTopChange = async (isOnTop: boolean) => {
   currentSettings.value.always_on_top = isOnTop
   try {
-    await invoke('set_always_on_top', { alwaysOnTop: isOnTop })
+    await windowApi.setAlwaysOnTop(isOnTop)
     await saveSettings()
     console.log('窗口置顶设置成功:', isOnTop)
   } catch (error) {
@@ -268,7 +247,7 @@ const handleAccentColorChange = async (color: string) => {
   // 应用主题色到主窗口
   try {
     const script = `document.documentElement.style.setProperty('--accent-color', '${color}')`
-    await invoke('eval_script_in_main_window', { script })
+    await windowApi.evalScript(script)
   } catch (error) {
     console.error('应用主题色到主窗口失败:', error)
   }
@@ -297,7 +276,8 @@ const handleStartupChange = async (startup: string) => {
 // 加载设置
 const loadSettings = async () => {
   try {
-    const settings = await invoke<WindowSettings>('load_window_settings_from_db')
+    const settings = await databaseApi.window.load()
+    if (!settings) return
     currentSettings.value = settings
 
     // 使用useTheme统一管理主题应用
@@ -309,7 +289,7 @@ const loadSettings = async () => {
     }
 
     // 应用透明度
-    await invoke('set_window_opacity', { opacity: settings.opacity })
+    await windowApi.setOpacity(settings.opacity)
 
     console.log('设置加载成功:', settings)
   } catch (error) {

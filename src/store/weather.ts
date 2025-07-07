@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { weatherApi } from '@/api/services'
 import { weatherService, type WeatherInfo, type WeatherSettings } from '@/common/weather'
 
 export const useWeatherStore = defineStore('weather', () => {
@@ -41,8 +41,8 @@ export const useWeatherStore = defineStore('weather', () => {
   // 加载天气设置
   const loadSettings = async (): Promise<void> => {
     try {
-      const loadedSettings = await invoke<WeatherSettings>('load_weather_settings_from_db')
-      settings.value = loadedSettings
+      const loadedSettings = await weatherApi.load()
+      settings.value = loadedSettings!
       console.log('✅ [WeatherStore] 天气设置加载成功:', loadedSettings)
     } catch (error) {
       console.error('❌ [WeatherStore] 加载天气设置失败:', error)
@@ -56,7 +56,7 @@ export const useWeatherStore = defineStore('weather', () => {
         settings.value = { ...settings.value, ...newSettings }
       }
       
-      await invoke('save_weather_settings_to_db', { settings: settings.value })
+      await weatherApi.save(settings.value)
       console.log('✅ [WeatherStore] 天气设置已保存:', settings.value)
       
       // 如果天气功能被禁用，清除天气信息

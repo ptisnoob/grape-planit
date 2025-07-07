@@ -1,7 +1,5 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { CountdownConfig } from '@/model/countdown';
 import { useDatabase } from '@/composables/useDatabase';
 
 export const useModeStore = defineStore('mode', () => {
@@ -12,8 +10,10 @@ export const useModeStore = defineStore('mode', () => {
         currentMode.value = mode;
         try {
             const config = await loadConfigFromDb();
-            config.timeDisplayMode = mode;
-            await updateCountdownConfig(config);
+            if (config) {
+                config.timeDisplayMode = mode;
+                await updateCountdownConfig(config);
+            }
         } catch (error) {
             console.error('Failed to switch mode:', error);
         }
@@ -22,7 +22,9 @@ export const useModeStore = defineStore('mode', () => {
     const loadInitialMode = async () => {
         try {
             const config = await loadConfigFromDb();
-            currentMode.value = config.timeDisplayMode;
+            if (config) {
+                currentMode.value = config.timeDisplayMode;
+            }
         } catch (error) {
             console.error('Failed to load initial mode:', error);
         }

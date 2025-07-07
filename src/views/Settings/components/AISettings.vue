@@ -57,7 +57,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import defaultAIService from '@/common/ai'
+import defaultAIService  from '@/common/ai'
+import { useUIFeedbackTimer } from '@/composables/useTimer'
 import ConfigTip from '@/components/ConfigTip.vue'
 
 // AI配置状态
@@ -71,6 +72,9 @@ const aiSettings = ref({
 const isTestingConnection = ref(false)
 const isSavingAI = ref(false)
 const testResult = ref(null)
+
+// 使用UI反馈定时器管理
+const { createFeedbackTimer } = useUIFeedbackTimer()
 
 // 加载AI设置
 const loadAISettings = async () => {
@@ -109,9 +113,9 @@ const saveAISettings = async () => {
   } finally {
     isSavingAI.value = false
     // 3秒后清除结果提示
-    setTimeout(() => {
+    createFeedbackTimer(() => {
       testResult.value = null
-    }, 3000)
+    }, 3000, 'aiSaveResult')
   }
 }
 

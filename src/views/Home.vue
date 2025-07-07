@@ -7,12 +7,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useRouter } from 'vue-router'
 import DefaultTime from '@/components/DefaultTime.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import { useTheme } from '@/composables/useTheme'
 import { useAppStore } from '@/store/app'
+import { databaseApi, todoApi } from '@/api/services'
 import { WindowSettings } from '@/model/settings'
 
 const isHeaderVisible = ref(false)
@@ -31,7 +31,12 @@ const hideHeader = () => {
 // 检查启动设置并决定显示内容
 const checkStartupSettings = async () => {
   try {
-    const settings = await invoke<WindowSettings>('load_window_settings_from_db')
+    const settings = await databaseApi.window.load()
+    
+    if (!settings) {
+      console.error('❌ [前端] 加载窗口设置失败')
+      return
+    }
     
     if (settings.default_startup === 'todo') {
       // 直接跳转到todo列表
@@ -40,7 +45,7 @@ const checkStartupSettings = async () => {
     } else if (settings.default_startup === 'auto') {
       // 检查是否有最近的待办事项
       const recentDays = settings.recent_days || 5
-      const todos = await invoke('get_recent_todos', { days: recentDays })
+      const todos = await todoApi.getRecent(recentDays)
       
       if (Array.isArray(todos) && todos.length > 0) {
         // 有最近的待办事项，跳转到todo列表
@@ -58,7 +63,13 @@ const checkStartupSettings = async () => {
 // 加载窗口设置（仅加载主题色，主题由useTheme处理）
 const loadWindowSettings = async () => {
   try {
-    const settings = await invoke<WindowSettings>('load_window_settings_from_db')
+    const settings = await databaseApi.window.load()
+    
+    if (!settings) {
+      console.error('❌ [前端] 加载窗口设置失败')
+      return
+    }
+    
     console.log('🔧 [前端] 主窗口加载设置:', settings)
 
     // 应用主题色

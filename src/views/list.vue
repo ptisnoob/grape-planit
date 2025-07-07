@@ -11,7 +11,7 @@
       <div v-if="list.length > 0" class="drag-area">
         <div v-for="(item, index) in list" :key="item.id" class="list-item"
           :class="{ 'is-expanded': item.expanded, 'is-dragging': isDragging && dragIndex === index }"
-          @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPress" @mouseleave="cancelLongPress"
+          @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPressAction" @mouseleave="cancelLongPressAction"
           @click="handleClick(item)">
           <div class="item-header">
             <div class="title-with-level">
@@ -58,12 +58,13 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
 import { ref, computed, onMounted } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
 import { Todo } from '@/model/todo';
 import { GDate } from "@/common/date"
 import Empty from '@/components/Empty.vue';
 import TopTimeDisplay from '@/components/TopTimeDisplay.vue';
 import WeatherBackground from '@/components/WeatherBackground.vue';
+import { useLongPressTimer, useUIFeedbackTimer } from '@/composables/useTimer';
+import { databaseApi, todoApi } from '@/api/services';
 
 const list = ref<Todo[]>([]);
 const filterDays = ref(5); // 默认显示最近5天
@@ -71,10 +72,10 @@ const filterDays = ref(5); // 默认显示最近5天
 const loadTodos = async () => {
   try {
     // 从数据库加载窗口设置，获取recent_days配置
-    const settings = await invoke('load_window_settings_from_db');
+    const settings = await databaseApi.window.load();
     filterDays.value = (settings as any).recent_days || 5;
     
-    const todos = await invoke('get_recent_todos', { days: filterDays.value });
+    const todos = await todoApi.getRecent(filterDays.value);
     list.value = (todos as Todo[]).map(todo => ({ ...todo, expanded: false }));
     console.log('Loaded todos with recent days:', filterDays.value, todos);
   } catch (error) {
@@ -91,9 +92,13 @@ const dragIndex = ref(-1);
 const dragPreview = ref<any>(null);
 const dragAction = ref('');
 const pointer = ref({ x: 0, y: 0 });
-const longPressTimer = ref<number | null>(null);
 const pressedIndex = ref<number | null>(null);
 const justFinishedDragging = ref(false); // 新增：标记是否刚完成拖拽
+
+// 使用长按定时器管理
+const { startLongPress, cancelLongPress, isLongPressing } = useLongPressTimer();
+// 使用UI反馈定时器管理
+const { createFeedbackTimer } = useUIFeedbackTimer();
 
 const previewStyle = computed(() => ({
   top: pointer.value.y + 'px',
@@ -102,16 +107,13 @@ const previewStyle = computed(() => ({
 
 const prepareLongPress = (e: MouseEvent, index: number) => {
   pressedIndex.value = index;
-  longPressTimer.value = window.setTimeout(() => {
+  startLongPress(() => {
     startDrag(e, index);
   }, 300);
 };
 
-const cancelLongPress = () => {
-  if (longPressTimer.value !== null) {
-    clearTimeout(longPressTimer.value);
-    longPressTimer.value = null;
-  }
+const cancelLongPressAction = () => {
+  cancelLongPress();
 };
 
 const handleClick = (item: any) => {
@@ -124,7 +126,7 @@ const handleClick = (item: any) => {
 };
 
 const startDrag = (e: MouseEvent, index: number) => {
-  cancelLongPress();
+  cancelLongPressAction();
   e.preventDefault();
   isDragging.value = true;
   dragIndex.value = index;
@@ -249,7 +251,7 @@ const onMouseUp = async () => {
     const todo = list.value[dragIndex.value];
     if (dragAction.value === 'delete') {
       try {
-        await invoke('delete_todo', { id: todo.id });
+        await todoApi.delete(todo.id);
         list.value.splice(dragIndex.value, 1);
       } catch (error) {
         console.error('Failed to delete todo:', error);
@@ -257,7 +259,7 @@ const onMouseUp = async () => {
     } else if (dragAction.value === 'complete') {
       try {
         const updatedTodo = { ...todo, status: 1 };
-        await invoke('update_todo', { todo: updatedTodo });
+        await todoApi.update(updatedTodo);
         list.value.splice(dragIndex.value, 1); // 从列表中移除
       } catch (error) {
         console.error('Failed to complete todo:', error);
@@ -274,9 +276,9 @@ const onMouseUp = async () => {
   if (wasDragging) {
     justFinishedDragging.value = true;
     // 短暂延迟后重置标志，确保点击事件被阻止
-    setTimeout(() => {
+    createFeedbackTimer(() => {
       justFinishedDragging.value = false;
-    }, 50);
+    }, 50, 'dragFinished');
   }
 
   // 恢复页面滚动

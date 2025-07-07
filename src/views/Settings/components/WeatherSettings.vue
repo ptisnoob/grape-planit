@@ -5,13 +5,8 @@
       <div class="section-header">
         <h3 class="section-title">🌤️ 天气功能</h3>
         <div class="toggle-switch">
-          <input 
-            type="checkbox" 
-            id="weather-enabled" 
-            v-model="currentSettings.enabled" 
-            @change="saveSettings"
-            class="toggle-input"
-          >
+          <input type="checkbox" id="weather-enabled" v-model="currentSettings.enabled" @change="saveSettings"
+            class="toggle-input">
           <label for="weather-enabled" class="toggle-label">
             <span class="toggle-slider"></span>
           </label>
@@ -25,13 +20,8 @@
       <h3 class="section-title">🗝️ API配置</h3>
       <div class="input-group">
         <label class="input-label">高德地图API Key</label>
-        <input 
-          type="password" 
-          v-model="currentSettings.api_key" 
-          @blur="saveSettings"
-          placeholder="请输入高德地图API Key"
-          class="api-key-input"
-        >
+        <input type="password" v-model="currentSettings.api_key" @blur="saveSettings" placeholder="请输入高德地图API Key"
+          class="api-key-input">
       </div>
       <div class="config-tip">
         <span class="tip-text">💡 请在高德开放平台申请Web服务API Key</span>
@@ -42,15 +32,12 @@
     <div class="settings-section" v-if="currentSettings.enabled">
       <div class="section-header">
         <h3 class="section-title">📍 位置信息</h3>
-        <button 
-          @click="getCurrentLocation" 
-          :disabled="!currentSettings.api_key || isGettingLocation"
-          class="get-location-btn"
-        >
+        <button @click="getCurrentLocation" :disabled="!currentSettings.api_key || isGettingLocation"
+          class="get-location-btn">
           {{ isGettingLocation ? '获取中...' : '获取位置' }}
         </button>
       </div>
-      
+
       <div v-if="currentSettings.location_name" class="location-info">
         <div class="location-summary">
           <div class="location-main">
@@ -61,7 +48,7 @@
           </div>
         </div>
       </div>
-      
+
       <div v-else class="no-location">
         <span class="no-location-text">暂未获取位置信息</span>
       </div>
@@ -71,7 +58,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { weatherApi, windowApi } from '@/api/services'
 import type { WeatherSettings } from '@/common/weather'
 
 // 当前设置状态
@@ -104,16 +91,16 @@ const updateLocationDisplay = () => {
 // 保存设置到数据库
 const saveSettings = async () => {
   try {
-    await invoke('save_weather_settings_to_db', { settings: currentSettings.value })
-    
+    await weatherApi.save(currentSettings.value)
+
     // 同步天气开关状态到主窗口
     const script = `
       if (window.weatherStore) {
         window.weatherStore.updateSettings(${JSON.stringify(currentSettings.value)});
       }
     `
-    await invoke('eval_script_in_main_window', { script })
-    
+    await windowApi.evalScript(script)
+
     console.log('✅ [前端] 天气设置已保存:', currentSettings.value)
   } catch (error) {
     console.error('❌ [前端] 保存天气设置失败:', error)
@@ -126,9 +113,9 @@ const getCurrentLocation = async () => {
     alert('请先配置高德地图API Key')
     return
   }
-  
+
   isGettingLocation.value = true
-  
+
   try {
     // 获取浏览器地理位置
     const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -138,24 +125,24 @@ const getCurrentLocation = async () => {
         maximumAge: 60000
       })
     })
-    
+
     const { latitude, longitude } = position.coords
-    
+
     // 调用高德逆地理编码API
     const response = await fetch(
       `https://restapi.amap.com/v3/geocode/regeo?key=${currentSettings.value.api_key}&location=${longitude},${latitude}&extensions=all&batch=false&roadlevel=0`
     )
-    
+
     if (!response.ok) {
       throw new Error('网络请求失败')
     }
-    
+
     const data = await response.json()
-    
+
     if (data.status === '1' && data.regeocode) {
       const regeocode = data.regeocode
       const addressComponent = regeocode.addressComponent
-      
+
       // 更新位置信息
       currentSettings.value.latitude = latitude
       currentSettings.value.longitude = longitude
@@ -164,13 +151,13 @@ const getCurrentLocation = async () => {
       currentSettings.value.province = addressComponent.province || null
       currentSettings.value.city = addressComponent.city || addressComponent.province || null
       currentSettings.value.district = addressComponent.district || null
-      
+
       // 更新位置显示
       updateLocationDisplay()
-      
+
       // 保存设置
       await saveSettings()
-      
+
       console.log('✅ [前端] 位置信息获取成功')
     } else {
       throw new Error(data.info || '获取位置信息失败')
@@ -200,7 +187,8 @@ const getCurrentLocation = async () => {
 // 加载设置
 const loadSettings = async () => {
   try {
-    const settings = await invoke<WeatherSettings>('load_weather_settings_from_db')
+    const settings = await weatherApi.load()
+    if (!settings) return
     currentSettings.value = settings
     updateLocationDisplay()
     console.log('✅ [前端] 天气设置加载成功:', settings)
@@ -287,11 +275,11 @@ onMounted(async () => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.toggle-input:checked + .toggle-label {
+.toggle-input:checked+.toggle-label {
   background: var(--accent-color);
 }
 
-.toggle-input:checked + .toggle-label .toggle-slider {
+.toggle-input:checked+.toggle-label .toggle-slider {
   transform: translateX(20px);
 }
 
@@ -407,7 +395,7 @@ onMounted(async () => {
     padding: 12px;
     margin-bottom: 16px;
   }
-  
+
   .section-header {
     flex-direction: column;
     align-items: flex-start;

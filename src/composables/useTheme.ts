@@ -1,6 +1,5 @@
 import { ref, computed } from 'vue'
-import { invoke } from '@tauri-apps/api/core';
-import { WindowSettings } from '../model/settings'
+import { databaseApi } from '@/api/services'
 
 export type ThemeType = 'light' | 'dark' | 'auto'
 
@@ -40,7 +39,7 @@ export const useTheme = () => {
   const initTheme = async () => {
     try {
       // 从数据库读取主题设置
-      const settings = await invoke<WindowSettings>('load_window_settings_from_db')
+      const settings = await databaseApi.window.load()
       if (settings && settings.theme && ['light', 'dark', 'auto'].includes(settings.theme)) {
         setTheme(settings.theme as ThemeType)
       } else {

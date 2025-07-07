@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { databaseApi } from '../api/services';
 import type { CountdownConfig } from '../model/countdown';
 import type { WindowSettings } from '../model/settings';
 
@@ -12,7 +12,7 @@ export function useDatabase() {
   const loadConfigFromDb = async (): Promise<CountdownConfig | null> => {
     try {
       console.log('🔧 [useDatabase] 开始调用 load_countdown_config_from_db...');
-      const result = await invoke<CountdownConfig>('load_countdown_config_from_db');
+      const result = await databaseApi.countdown.load();
       console.log('🔧 [useDatabase] load_countdown_config_from_db 成功返回:', result);
       return result;
     } catch (error) {
@@ -26,7 +26,10 @@ export function useDatabase() {
    */
   const saveConfigToDb = async (config: CountdownConfig): Promise<void> => {
     try {
-      await invoke('save_countdown_config_to_db', { config });
+      const success = await databaseApi.countdown.save(config);
+      if (!success) {
+        throw new Error('保存配置失败');
+      }
     } catch (error) {
       console.error('Failed to save config to database:', error);
       throw error;
@@ -39,7 +42,10 @@ export function useDatabase() {
   const updateCountdownConfig = async (config: CountdownConfig): Promise<void> => {
     try {
       console.log('🔧 [useDatabase] 开始调用 update_countdown_config...', config);
-      await invoke('update_countdown_config', { config });
+      const success = await databaseApi.countdown.update(config);
+      if (!success) {
+        throw new Error('更新配置失败');
+      }
       console.log('🔧 [useDatabase] update_countdown_config 成功完成');
     } catch (error) {
       console.error('❌ [useDatabase] 更新倒计时配置失败:', error);
@@ -56,11 +62,10 @@ export function useDatabase() {
     duration?: number
   ): Promise<void> => {
     try {
-      await invoke('save_countdown_record', {
-        mode,
-        targetTime,
-        duration,
-      });
+      const success = await databaseApi.countdown.saveRecord(mode, targetTime, duration);
+      if (!success) {
+        throw new Error('保存记录失败');
+      }
     } catch (error) {
       console.error('Failed to save countdown record:', error);
       throw error;
@@ -72,7 +77,10 @@ export function useDatabase() {
    */
   const startCountdownTimer = async (): Promise<void> => {
     try {
-      await invoke('start_countdown_timer');
+      const success = await databaseApi.countdown.startTimer();
+      if (!success) {
+        throw new Error('启动定时器失败');
+      }
     } catch (error) {
       console.error('Failed to start countdown timer:', error);
       throw error;
@@ -84,7 +92,10 @@ export function useDatabase() {
    */
   const loadWindowSettings = async (): Promise<WindowSettings> => {
     try {
-      const result = await invoke<WindowSettings>('load_window_settings_from_db');
+      const result = await databaseApi.window.load();
+      if (!result) {
+        throw new Error('加载窗口设置失败');
+      }
       return result;
     } catch (error) {
       console.error('Failed to load window settings from database:', error);
@@ -97,7 +108,10 @@ export function useDatabase() {
    */
   const saveWindowSettings = async (settings: WindowSettings): Promise<void> => {
     try {
-      await invoke('save_window_settings_to_db', { settings });
+      const success = await databaseApi.window.save(settings);
+      if (!success) {
+        throw new Error('保存窗口设置失败');
+      }
     } catch (error) {
       console.error('Failed to save window settings to database:', error);
       throw error;

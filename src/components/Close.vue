@@ -5,11 +5,11 @@
 </template>
 
 <script setup lang="ts">
-import { invoke } from '@tauri-apps/api/core'
+import { windowApi } from '@/api/services'
 
 const handleClose = async () => {
     try {
-        await invoke('hide_to_tray')
+        await windowApi.hideToTray()
     } catch (error) {
         console.error('Failed to hide to tray:', error)
     }

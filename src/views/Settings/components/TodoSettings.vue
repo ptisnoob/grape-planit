@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, nextTick } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
+import { todoApi } from '@/api/services';
 
 // 优先级配置
 const levelConfigs = reactive([
@@ -126,7 +126,7 @@ const saveSettings = async () => {
       return acc;
     }, {} as Record<string, string>);
     
-    await invoke('save_todo_color_settings', { colors: colorSettings });
+    await todoApi.saveColorSettings(colorSettings);
     
     // 更新CSS变量
     updateCSSVariables();
@@ -143,7 +143,7 @@ const saveSettings = async () => {
 // 加载设置
 const loadSettings = async () => {
   try {
-    const settings = await invoke('load_todo_color_settings');
+    const settings = await todoApi.loadColorSettings();
     if (settings) {
       const colorSettings = settings as Record<string, string>;
       levelConfigs.forEach(level => {
@@ -172,7 +172,7 @@ const updateCSSVariables = () => {
 // 应用颜色到主窗口
 const applyColorsToMainWindow = async (colors: Record<string, string>) => {
   try {
-    await invoke('apply_todo_colors_to_main_window', { colors });
+    await todoApi.applyColorsToMainWindow(colors);
   } catch (error) {
     console.error('应用颜色到主窗口失败:', error);
   }

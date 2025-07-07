@@ -1,44 +1,15 @@
 import { ExtractionTaskPrompt } from "./prompt"
 import { GDate } from "./date"
 import { TodoVo } from '@/model/todo';
-import { invoke } from '@tauri-apps/api/core';
+import { aiApi } from '@/api/services';
+import type { 
+    ChatMessage, 
+    ChatCompletionOptions, 
+    ChatCompletionResponse 
+} from '@/model/ai';
 
-// 定义消息类型
-export interface ChatMessage {
-    role: 'system' | 'user' | 'assistant' | 'function';
-    content: string;
-    name?: string; // 用于function调用
-}
-
-// 聊天完成选项
-export interface ChatCompletionOptions {
-    model?: string;
-    temperature?: number;
-    max_tokens?: number;
-    stream?: boolean;
-    messages: ChatMessage[];
-}
-
-// 聊天完成响应
-export interface ChatCompletionResponse {
-    id: string;
-    object: string;
-    created: number;
-    model: string;
-    choices: {
-        index: number;
-        message: ChatMessage;
-        finish_reason: string;
-    }[];
-    usage: {
-        prompt_tokens: number;
-        completion_tokens: number;
-        total_tokens: number;
-    };
-}
-
-// AI服务配置
-export interface AIConfig {
+// AI服务内部配置（用于本地实例）
+export interface AIServiceConfig {
     baseUrl: string;
     apiKey: string;
     model: string;
@@ -49,9 +20,9 @@ export interface AIConfig {
  * 提供与OpenAI API或兼容服务的交互功能
  */
 export class AIService {
-    private config: AIConfig;
+    private config: AIServiceConfig;
 
-    constructor(config?: Partial<AIConfig>) {
+    constructor(config?: Partial<AIServiceConfig>) {
         // 从环境变量或传入参数获取配置
         this.config = {
             baseUrl: config?.baseUrl || import.meta.env.VITE_OPENAI_BASE_URL || 'https://api.openai.com/v1',
@@ -228,7 +199,7 @@ export class AIService {
      * 获取当前配置
      * @returns AI配置
      */
-    getConfig(): AIConfig {
+    getConfig(): AIServiceConfig {
         return { ...this.config };
     }
 
@@ -236,7 +207,7 @@ export class AIService {
      * 更新配置
      * @param config 新的配置
      */
-    updateConfig(config: Partial<AIConfig>): void {
+    updateConfig(config: Partial<AIServiceConfig>): void {
         this.config = {
             ...this.config,
             ...config
@@ -248,17 +219,16 @@ export class AIService {
      */
     async loadConfigFromDB(): Promise<void> {
         try {
-            const settings = await invoke('load_ai_settings_from_db') as {
-                api_key: string;
-                base_url: string;
-                model: string;
-            };
-            
-            this.config = {
-                apiKey: settings.api_key,
-                baseUrl: settings.base_url,
-                model: settings.model
-            };
+            const settings = await aiApi.load();
+            if (settings) {
+                this.config = {
+                    apiKey: settings.api_key,
+                    baseUrl: settings.base_url,
+                    model: settings.model
+                };
+            } else {
+                console.error('从数据库加载AI配置失败:', settings);
+            }
         } catch (error) {
             console.error('从数据库加载AI配置失败:', error);
         }
@@ -268,16 +238,15 @@ export class AIService {
      * 保存AI配置到数据库
      * @param config AI配置
      */
-    async saveConfigToDB(config: AIConfig): Promise<void> {
+    async saveConfigToDB(config: AIServiceConfig): Promise<void> {
         try {
-            await invoke('save_ai_settings_to_db', {
-                settings: {
-                    api_key: config.apiKey,
-                    base_url: config.baseUrl,
-                    model: config.model
-                }
+            await aiApi.save({
+                enabled: true, // 默认启用
+                api_key: config.apiKey,
+                base_url: config.baseUrl,
+                model: config.model
             });
-            
+
             // 更新本地配置
             this.updateConfig(config);
         } catch (error) {
@@ -292,7 +261,7 @@ export class AIService {
      */
     async testConnection(): Promise<{ success: boolean; message: string; responseTime?: number }> {
         const startTime = Date.now();
-        
+
         try {
             // 验证配置
             if (!this.config.apiKey) {
@@ -301,14 +270,14 @@ export class AIService {
                     message: 'API Key未配置'
                 };
             }
-            
+
             if (!this.config.baseUrl) {
                 return {
                     success: false,
                     message: 'Base URL未配置'
                 };
             }
-            
+
             // 发送测试请求
             await this.createChatCompletion({
                 messages: [
@@ -320,9 +289,9 @@ export class AIService {
                 max_tokens: 10,
                 temperature: 0.1
             });
-            
+
             const responseTime = Date.now() - startTime;
-            
+
             return {
                 success: true,
                 message: `连接成功！响应时间: ${responseTime}ms`,

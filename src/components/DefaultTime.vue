@@ -54,7 +54,6 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import WorkEndSettings from './WorkEndSettings.vue'
 import CustomCountdownSettings from './CustomCountdownSettings.vue'
@@ -63,6 +62,8 @@ import { CountdownConfig, CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
 import { useDatabase } from '@/composables/useDatabase'
 import { useTime } from '@/composables/useTime'
+import { useEndStateTimer } from '@/composables/useTimer'
+import { databaseApi } from '@/api/services'
 
 
 // 使用时间相关的 composable
@@ -104,7 +105,9 @@ const beforeTime = ref(60)
 const isInFinalCountdown = ref(false)
 // 结束状态相关
 const isInEndState = ref(false)
-const endStateTimer = ref<NodeJS.Timeout | null>(null)
+
+// 使用结束状态定时器管理
+const { startEndStateTimer, clearEndStateTimer } = useEndStateTimer()
 
 // 事件监听器
 let unlistenCountdown: (() => void) | null = null
@@ -249,10 +252,7 @@ const handleGotIt = async () => {
     }
 
     // 清除结束状态定时器
-    if (endStateTimer.value) {
-        clearTimeout(endStateTimer.value)
-        endStateTimer.value = null
-    }
+    clearEndStateTimer()
 
     // 退出结束状态
     isInEndState.value = false
@@ -262,7 +262,7 @@ const handleGotIt = async () => {
     if (countdownData.value?.mode === 'workEnd' && countdownData.value?.status === 'finished') {
         try {
             // 调用后端重置下班倒计时到下一天
-            await invoke('reset_work_end_countdown_to_next_day')
+            await databaseApi.countdown.resetWorkEndToNextDay()
             console.log('✅ [前端] 下班倒计时已重置到下一天')
             
             // 重置前端状态
@@ -280,7 +280,7 @@ const handleGotIt = async () => {
     // 如果是自定义倒计时结束，重置倒计时
     if (countdownData.value?.mode === 'custom' && countdownData.value?.status === 'finished') {
         try {
-            await invoke('reset_custom_countdown')
+            await databaseApi.countdown.resetCustom()
             console.log('✅ [前端] 自定义倒计时已重置')
             
             // 重置前端状态
@@ -297,18 +297,16 @@ const handleGotIt = async () => {
 }
 
 // 开始结束状态保持定时器
-const startEndStateTimer = () => {
+const startEndStateKeepTimer = () => {
     if (!config.value) return
 
     const keepMinutes = config.value.endStateKeepMinutes || 5
-    const keepMilliseconds = keepMinutes * 60 * 1000
-
     console.log(`🕐 [前端] 开始结束状态保持定时器，将保持 ${keepMinutes} 分钟`)
 
-    endStateTimer.value = setTimeout(() => {
+    startEndStateTimer(() => {
         console.log('⏰ [前端] 结束状态保持时间到，自动退出结束状态')
         handleGotIt()
-    }, keepMilliseconds)
+    }, keepMinutes)
 }
 
 // 设置倒计时事件监听
@@ -355,7 +353,7 @@ const setupCountdownListener = async () => {
                 // 进入结束状态
                 isInEndState.value = true
                 // 开始结束状态保持定时器
-                startEndStateTimer()
+                startEndStateKeepTimer()
                 // 这里可以添加结束音效或其他效果
             }
         })
@@ -383,7 +381,7 @@ onMounted(async () => {
 
     // 启动倒计时服务
     try {
-        await invoke('start_countdown_timer');
+        await databaseApi.countdown.startTimer();
     } catch (error) {
         console.error('Failed to start countdown timer:', error);
     }
@@ -398,11 +396,7 @@ onUnmounted(() => {
     if (unlistenCountdown) {
         unlistenCountdown();
     }
-    // 清理结束状态定时器
-    if (endStateTimer.value) {
-        clearTimeout(endStateTimer.value);
-        endStateTimer.value = null;
-    }
+    // 结束状态定时器会在useEndStateTimer的onUnmounted中自动清理
 });
 </script>
 

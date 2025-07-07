@@ -51,7 +51,7 @@
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { weatherService, type WeatherInfo, type WeatherSettings } from '@/common/weather'
-import { invoke } from '@tauri-apps/api/core'
+import { weatherApi } from '@/api/services'
 
 // Props
 interface Props {
@@ -69,23 +69,23 @@ const weatherBackgroundStyle = ref<string>('')
 const weatherInfo = ref<WeatherInfo | null>(null)
 const weatherLoading = ref(false)
 const weatherSettings = ref<WeatherSettings>({
-  enabled: false,
-  api_key: '',
-  location_name: '',
-  latitude: null,
-  longitude: null,
-  adcode: null,
-  province: null,
-  city: null,
-  district: null
+    enabled: false,
+    api_key: '',
+    location_name: '',
+    latitude: null,
+    longitude: null,
+    adcode: null,
+    province: null,
+    city: null,
+    district: null
 })
 
 // 计算属性
 const isWeatherEnabled = computed(() => weatherSettings.value.enabled)
 const isConfigured = computed(() => {
-  return weatherSettings.value.enabled && 
-         weatherSettings.value.api_key.trim() !== '' && 
-         weatherSettings.value.adcode !== null
+    return weatherSettings.value.enabled &&
+        weatherSettings.value.api_key.trim() !== '' &&
+        weatherSettings.value.adcode !== null
 })
 
 // 天气动画控制
@@ -244,10 +244,12 @@ defineExpose({
 // 加载天气设置
 const loadWeatherSettings = async () => {
     try {
-        const settings = await invoke<WeatherSettings>('load_weather_settings_from_db')
-        weatherSettings.value = settings
+        const settings = await weatherApi.load()
+        if (settings) {
+            weatherSettings.value = settings
+        }
         console.log('✅ [WeatherBackground] 天气设置加载成功:', settings)
-        
+
         // 如果配置完整，加载天气信息
         if (isConfigured.value) {
             await loadWeatherInfo()
@@ -261,7 +263,7 @@ const loadWeatherSettings = async () => {
 const updateWeatherSettings = (newSettings: WeatherSettings) => {
     weatherSettings.value = newSettings
     console.log('🔄 [WeatherBackground] 天气设置已更新:', newSettings)
-    
+
     // 如果天气功能被禁用，清除天气信息
     if (!newSettings.enabled) {
         weatherInfo.value = null
@@ -276,11 +278,11 @@ let weatherUpdateInterval: number | null = null
 onMounted(async () => {
     // 加载天气设置
     await loadWeatherSettings()
-    
-    // 设置全局weatherStore供设置窗口调用
-    ;(window as any).weatherStore = {
-        updateSettings: updateWeatherSettings
-    }
+
+        // 设置全局weatherStore供设置窗口调用
+        ; (window as any).weatherStore = {
+            updateSettings: updateWeatherSettings
+        }
 
     // 设置天气信息定时更新（每30分钟更新一次）
     weatherUpdateInterval = window.setInterval(() => {
@@ -293,7 +295,7 @@ onMounted(async () => {
 onUnmounted(() => {
     // 清理天气背景样式
     resetWeatherBackground()
-    
+
     // 清理定时器
     if (weatherUpdateInterval) {
         clearInterval(weatherUpdateInterval)

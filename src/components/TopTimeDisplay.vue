@@ -19,13 +19,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useRouter, useRoute } from 'vue-router'
 import { CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
 import { useTime, useCountdown } from '@/composables/useTime'
 import { useCarousel } from '@/composables/useCarousel'
+import { databaseApi } from '@/api/services'
 import Close from './Close.vue'
 import ThemeToggle from './ThemeToggle.vue';
 import SettingsBtn from './SettingsBtn.vue'
@@ -127,7 +127,7 @@ const setupCountdownListener = async () => {
 const initCountdowns = async () => {
   try {
     // 启动倒计时服务
-    await invoke('start_countdown_timer')
+    await databaseApi.countdown.startTimer()
   } catch (error) {
     console.error('Failed to start countdown timer:', error)
   }
