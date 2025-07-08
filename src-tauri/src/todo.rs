@@ -31,6 +31,20 @@ pub struct AddTodoParams {
     cycle: String,
 }
 
+#[derive(serde::Deserialize)]
+pub struct UpdateTodoParams {
+    id: i64,
+    title: Option<String>,
+    #[serde(rename = "startTime")]
+    start_time: Option<i64>,
+    #[serde(rename = "endTime")]
+    end_time: Option<Option<i64>>, // Option<Option<i64>> 用于区分不更新和设置为null
+    notes: Option<Option<String>>,
+    level: Option<i64>,
+    cycle: Option<String>,
+    completed: Option<bool>,
+}
+
 #[tauri::command]
 pub async fn add_todo(pool: State<'_, SqlitePool>, params: AddTodoParams) -> Result<i64, String> {
     let result = sqlx::query(
@@ -55,6 +69,17 @@ pub async fn get_all_todos(pool: State<'_, SqlitePool>) -> Result<Vec<Todo>, Str
         .fetch_all(pool.inner())
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_todo_by_id(pool: State<'_, SqlitePool>, id: i64) -> Result<Option<Todo>, String> {
+    let todo = sqlx::query_as::<_, Todo>("SELECT id, title, start_time, end_time, notes, level, cycle, status, created_at, updated_at FROM todos WHERE id = ? AND status != 2")
+        .bind(id)
+        .fetch_optional(pool.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    Ok(todo)
 }
 
 #[tauri::command]
@@ -149,7 +174,40 @@ fn calculate_next_cycle_time(current_time: i64, cycle: &str) -> i64 {
 }
 
 #[tauri::command]
-pub async fn update_todo(pool: State<'_, SqlitePool>, todo: Todo) -> Result<(), String> {
+pub async fn update_todo(pool: State<'_, SqlitePool>, params: UpdateTodoParams) -> Result<(), String> {
+    // 首先获取现有的todo
+    let existing_todo = sqlx::query_as::<_, Todo>("SELECT id, title, start_time, end_time, notes, level, cycle, status, created_at, updated_at FROM todos WHERE id = ?")
+        .bind(params.id)
+        .fetch_optional(pool.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    let mut todo = existing_todo.ok_or("Todo not found")?;
+    
+    // 更新字段
+    if let Some(title) = params.title {
+        todo.title = title;
+    }
+    if let Some(start_time) = params.start_time {
+        todo.start_time = start_time;
+    }
+    if let Some(end_time) = params.end_time {
+        todo.end_time = end_time;
+    }
+    if let Some(notes) = params.notes {
+        todo.notes = notes;
+    }
+    if let Some(level) = params.level {
+        todo.level = level;
+    }
+    if let Some(cycle) = params.cycle {
+        todo.cycle = cycle;
+    }
+    if let Some(completed) = params.completed {
+        todo.status = if completed { 1 } else { 0 };
+    }
+    
+    // 执行更新
     sqlx::query("UPDATE todos SET title = ?, start_time = ?, end_time = ?, notes = ?, level = ?, cycle = ?, status = ?, updated_at = datetime('now') WHERE id = ?")
         .bind(todo.title)
         .bind(todo.start_time)

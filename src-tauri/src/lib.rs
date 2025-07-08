@@ -331,6 +331,7 @@ pub fn run() {
             todo::add_todo,
             todo::get_all_todos,
             todo::get_recent_todos,
+            todo::get_todo_by_id,
             todo::update_todo,
             todo::delete_todo,
             config::load_todo_color_settings,

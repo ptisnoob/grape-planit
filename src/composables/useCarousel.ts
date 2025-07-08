@@ -20,7 +20,7 @@ export function useCarousel(itemsCount: Ref<number>, interval: number = 10000) {
       // 只有在有多个项目时才进行切换
       if (itemsCount.value > 1) {
         const newIndex = (currentIndex.value + 1) % itemsCount.value
-        console.log(`轮播切换：${currentIndex.value} -> ${newIndex}`)
+        // console.log(`轮播切换：${currentIndex.value} -> ${newIndex}`)
         currentIndex.value = newIndex
       }
     }, interval)

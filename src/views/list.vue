@@ -1,6 +1,6 @@
 <template>
   <WeatherBackground :show-weather-info="false" container-class="list-view">
-    <div class="list-view">
+    <div class="list-view" @contextmenu.prevent>
       <!-- 顶部时间显示组件 -->
       <TopTimeDisplay />
     
@@ -12,13 +12,13 @@
         <div v-for="(item, index) in list" :key="item.id" class="list-item"
           :class="{ 'is-expanded': item.expanded, 'is-dragging': isDragging && dragIndex === index }"
           @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPressAction" @mouseleave="cancelLongPressAction"
-          @click="handleClick(item)">
+          @click="handleClick(item)" @contextmenu.prevent="showContextMenu($event, item, index)">
           <div class="item-header">
             <div class="title-with-level">
               <div class="level-color-block" :class="getLevelClass(item.level)" :title="getLevelText(item.level)"></div>
               <span class="item-title">{{ item.title }}</span>
             </div>
-            <span class="item-due-date" :class="getDueDateClass(item.startTime)">{{ getDueDateText(item.startTime)
+            <span class="item-due-date" :class="getDueDateClass(item)">{{ getDueDateText(item)
               }}</span>
           </div>
           <transition name="expand">
@@ -29,6 +29,22 @@
         </div>
       </div>
       <Empty v-else>暂无待办事项</Empty>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div v-if="contextMenu.visible" class="context-menu" :style="contextMenuStyle" @click.stop>
+      <div class="context-menu-item" @click="completeTodo">
+        <span class="menu-icon">✅</span>
+        <span>完成</span>
+      </div>
+      <div class="context-menu-item" @click="editTodo">
+        <span class="menu-icon">✏️</span>
+        <span>修改</span>
+      </div>
+      <div class="context-menu-item danger" @click="deleteTodo">
+        <span class="menu-icon">🗑️</span>
+        <span>删除</span>
+      </div>
     </div>
 
     <!-- 删除区域 -->
@@ -56,8 +72,8 @@
 </template>
 
 <script setup lang="ts">
-import { RouterLink } from 'vue-router';
-import { ref, computed, onMounted } from 'vue';
+import { RouterLink, useRouter } from 'vue-router';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Todo } from '@/model/todo';
 import { GDate } from "@/common/date"
 import Empty from '@/components/Empty.vue';
@@ -65,6 +81,8 @@ import TopTimeDisplay from '@/components/TopTimeDisplay.vue';
 import WeatherBackground from '@/components/WeatherBackground.vue';
 import { useLongPressTimer, useUIFeedbackTimer } from '@/composables/useTimer';
 import { databaseApi, todoApi } from '@/api/services';
+
+const router = useRouter();
 
 const list = ref<Todo[]>([]);
 const filterDays = ref(5); // 默认显示最近5天
@@ -83,8 +101,15 @@ const loadTodos = async () => {
   }
 };
 
+
+
 onMounted(() => {
   loadTodos();
+  document.addEventListener('click', handleGlobalClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleGlobalClick);
 });
 
 const isDragging = ref(false);
@@ -95,8 +120,17 @@ const pointer = ref({ x: 0, y: 0 });
 const pressedIndex = ref<number | null>(null);
 const justFinishedDragging = ref(false); // 新增：标记是否刚完成拖拽
 
+// 右键菜单状态
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  todo: null as Todo | null,
+  index: -1
+});
+
 // 使用长按定时器管理
-const { startLongPress, cancelLongPress, isLongPressing } = useLongPressTimer();
+const { startLongPress, cancelLongPress } = useLongPressTimer();
 // 使用UI反馈定时器管理
 const { createFeedbackTimer } = useUIFeedbackTimer();
 
@@ -104,6 +138,91 @@ const previewStyle = computed(() => ({
   top: pointer.value.y + 'px',
   left: pointer.value.x + 'px'
 }));
+
+// 右键菜单样式
+const contextMenuStyle = computed(() => ({
+  top: contextMenu.value.y + 'px',
+  left: contextMenu.value.x + 'px'
+}));
+
+// 显示右键菜单
+const showContextMenu = (event: MouseEvent, todo: Todo, index: number) => {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const menuWidth = 120;
+  const menuHeight = 120;
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
+  
+  let x = event.clientX;
+  let y = event.clientY;
+  
+  // 防止菜单超出屏幕边界
+  if (x + menuWidth > windowWidth) {
+    x = windowWidth - menuWidth - 10;
+  }
+  if (y + menuHeight > windowHeight) {
+    y = windowHeight - menuHeight - 10;
+  }
+  
+  contextMenu.value = {
+    visible: true,
+    x,
+    y,
+    todo,
+    index
+  };
+};
+
+// 隐藏右键菜单
+const hideContextMenu = () => {
+  contextMenu.value.visible = false;
+};
+
+// 全局点击事件处理
+const handleGlobalClick = (event: MouseEvent) => {
+  // 如果点击的不是右键菜单区域，则隐藏菜单
+  const target = event.target as HTMLElement;
+  if (!target.closest('.context-menu')) {
+    hideContextMenu();
+  }
+};
+
+// 完成todo
+const completeTodo = async () => {
+  if (!contextMenu.value.todo) return;
+  
+  try {
+    const updatedTodo = { ...contextMenu.value.todo, status: 1 };
+    await todoApi.update(updatedTodo);
+    list.value.splice(contextMenu.value.index, 1);
+  } catch (error) {
+    console.error('Failed to complete todo:', error);
+  }
+  hideContextMenu();
+};
+
+// 编辑todo
+const editTodo = () => {
+  if (!contextMenu.value.todo) return;
+  
+  router.push(`/add?id=${contextMenu.value.todo.id}`);
+  hideContextMenu();
+};
+
+// 删除todo
+const deleteTodo = async () => {
+  if (!contextMenu.value.todo) return;
+  
+  try {
+    await todoApi.delete(contextMenu.value.todo.id);
+    list.value.splice(contextMenu.value.index, 1);
+  } catch (error) {
+    console.error('Failed to delete todo:', error);
+  }
+  hideContextMenu();
+};
 
 const prepareLongPress = (e: MouseEvent, index: number) => {
   pressedIndex.value = index;
@@ -166,10 +285,12 @@ const onMouseMove = (e: MouseEvent) => {
 };
 
 // 获取截止时间显示文字
-const getDueDateText = (startTime: number) => {
-  if (!startTime) return '未设置截止时间';
+const getDueDateText = (item: Todo) => {
+  // 优先使用endTime，如果没有则使用startTime
+  const dueTime = item.endTime || item.startTime;
+  if (!dueTime) return '未设置截止时间';
 
-  const dueDate = new GDate(startTime);
+  const dueDate = new GDate(dueTime);
   const today = new GDate();
   
   // 使用日期的开始时间进行比较，确保计算准确
@@ -217,10 +338,12 @@ const getLevelClass = (level: number) => {
 };
 
 // 获取截止时间样式类名
-const getDueDateClass = (startTime: number) => {
-  if (!startTime) return 'due-date-none';
+const getDueDateClass = (item: Todo) => {
+  // 优先使用endTime，如果没有则使用startTime
+  const dueTime = item.endTime || item.startTime;
+  if (!dueTime) return 'due-date-none';
 
-  const dueDate = new GDate(startTime);
+  const dueDate = new GDate(dueTime);
   const today = new GDate();
   
   // 使用日期的开始时间进行比较，确保计算准确
@@ -752,5 +875,59 @@ const onMouseUp = async () => {
   text-overflow: ellipsis;
   opacity: 0.95;
   backdrop-filter: blur(4px);
+}
+
+/* 右键菜单样式 */
+.context-menu {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 1001;
+  min-width: 120px;
+  padding: 4px 0;
+  backdrop-filter: blur(10px);
+  animation: contextMenuFadeIn 0.15s ease-out;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.context-menu-item:hover {
+  background: var(--accent-color);
+  color: white;
+}
+
+.context-menu-item.danger:hover {
+  background: #ff4757;
+  color: white;
+}
+
+.menu-icon {
+  font-size: 16px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 </style>

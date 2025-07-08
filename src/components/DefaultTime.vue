@@ -279,7 +279,7 @@ const setupCountdownListener = async () => {
     try {
         console.log('🎧 [DefaultTime] 开始设置倒计时事件监听器')
         unlistenCountdown = await listen('countdown-update', (event) => {
-            console.log('📨 [DefaultTime] 收到倒计时更新事件:', event.payload)
+            // console.log('📨 [DefaultTime] 收到倒计时更新事件:', event.payload)
             const newData = event.payload as CountdownData
             const wasInFinalCountdown = shouldShowFinalCountdown.value
             const oldData = countdownData.value
@@ -363,7 +363,7 @@ onUnmounted(() => {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 30px 0;
+    // padding: 30px 0;
     text-align: center;
     overflow: hidden;
     position: relative;

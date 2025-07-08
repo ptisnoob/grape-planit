@@ -64,6 +64,14 @@ export class TodoApi {
   }
 
   /**
+   * 根据ID获取待办事项
+   */
+  static async getTodoById(id: number): Promise<Todo | null> {
+    const response = await api.call<Todo>('get_todo_by_id', { id });
+    return response.success ? response.data || null : null;
+  }
+
+  /**
    * 删除待办事项（逻辑删除）
    */
   static async deleteTodo(id: number): Promise<boolean> {
@@ -124,6 +132,7 @@ export const todoApi = {
   add: TodoApi.addTodo,
   getAll: TodoApi.getAllTodos,
   getRecent: TodoApi.getRecentTodos,
+  getById: TodoApi.getTodoById,
   update: TodoApi.updateTodo,
   delete: TodoApi.deleteTodo,
   complete: TodoApi.completeTodo,

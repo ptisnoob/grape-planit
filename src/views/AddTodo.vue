@@ -33,7 +33,7 @@
                         <Icon name="left" size="16" />
                         返回
                     </button>
-                    <h2 class="ai-title">AI智能填写</h2>
+                    <h2 class="ai-title">{{ isEditMode ? '编辑待办事项' : 'AI智能填写' }}</h2>
                 </div>
                 <form @submit.prevent="handleAISubmit" class="ai-form">
                     <textarea v-model="aiInput"
@@ -98,7 +98,7 @@
                 <div class="form-actions">
                     <button type="button" class="cancel-btn" @click="goBack">取消</button>
                     <button type="button" class="back-to-ai-btn" @click="backToAI">重新描述</button>
-                    <button type="submit" class="save-btn">保存</button>
+                    <button type="submit" class="save-btn">{{ isEditMode ? '更新' : '保存' }}</button>
                 </div>
             </form>
         </div>
@@ -107,12 +107,17 @@
 
 <script lang="ts" setup>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { TodoVo } from '@/model/todo';
 import defaultAIService from "@/common/ai";
 import { todoApi } from '@/api/todo';
 import { windowApi } from '@/api/services';
 const router = useRouter();
+const route = useRoute();
+
+// 编辑模式相关
+const isEditMode = ref(false);
+const editingTodoId = ref<number | null>(null);
 
 // AI相关状态
 const aiInput = ref('')
@@ -143,6 +148,41 @@ const getCurrentDateTimeLocal = () => {
 // 将datetime-local字符串转换为时间戳（秒）
 const dateTimeLocalToTimestamp = (dateTimeLocal: string): number => {
     return Math.floor(new Date(dateTimeLocal).getTime() / 1000);
+};
+
+// 将时间戳（秒）转换为datetime-local字符串
+const timestampToDateTimeLocal = (timestamp: number): string => {
+    const date = new Date(timestamp * 1000);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+// 加载现有todo进行编辑
+const loadTodoForEdit = async (id: number) => {
+    try {
+        const todoData = await todoApi.getById(id);
+        if (todoData) {
+            todo.value = {
+                title: todoData.title,
+                start_time: timestampToDateTimeLocal(todoData.startTime),
+                end_time: todoData.endTime ? timestampToDateTimeLocal(todoData.endTime) : '',
+                notes: todoData.notes || '',
+                level: todoData.level,
+                cycle: todoData.cycle
+            };
+            isEditMode.value = true;
+            editingTodoId.value = id;
+            showForm.value = true; // 直接显示表单，跳过AI阶段
+        }
+    } catch (error) {
+        console.error('加载todo失败:', error);
+        alert('加载待办事项失败');
+        router.back();
+    }
 };
 
 // 设置默认开始时间为当前时间
@@ -241,19 +281,34 @@ const saveTodo = async () => {
             return;
         }
 
-        const success = await todoApi.add({
-            title: todo.value.title,
-            startTime: startTimeTimestamp,
-            endTime: endTimeTimestamp,
-            notes: todo.value.notes || null,
-            level: todo.value.level,
-            cycle: todo.value.cycle
-        });
+        let success;
+        if (isEditMode.value && editingTodoId.value) {
+            // 编辑模式：更新现有todo
+            success = await todoApi.update({
+                id: editingTodoId.value,
+                title: todo.value.title,
+                startTime: startTimeTimestamp,
+                endTime: endTimeTimestamp,
+                notes: todo.value.notes || null,
+                level: todo.value.level,
+                cycle: todo.value.cycle
+            });
+        } else {
+            // 新增模式：创建新todo
+            success = await todoApi.add({
+                title: todo.value.title,
+                startTime: startTimeTimestamp,
+                endTime: endTimeTimestamp,
+                notes: todo.value.notes || null,
+                level: todo.value.level,
+                cycle: todo.value.cycle
+            });
+        }
         
         if (!success) {
-            throw new Error('保存待办事项失败');
+            throw new Error(isEditMode.value ? '更新待办事项失败' : '保存待办事项失败');
         }
-        // 保存成功后可以跳转到列表页或显示成功信息
+        // 保存成功后跳转到列表页
         router.push('/list');
     } catch (error) {
         console.error('Failed to save todo:', error);
@@ -262,7 +317,18 @@ const saveTodo = async () => {
 };
 
 // 组件挂载时检查AI配置
-onMounted(() => {
+onMounted(async () => {
+    // 检查是否是编辑模式
+    const todoId = route.query.id;
+    if (todoId) {
+        const id = parseInt(todoId as string);
+        if (!isNaN(id)) {
+            await loadTodoForEdit(id);
+            return; // 编辑模式下不需要检查AI配置
+        }
+    }
+    
+    // 检查AI配置（仅在新增模式下）
     checkAIConfiguration()
 })
 </script>
