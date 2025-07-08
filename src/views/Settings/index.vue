@@ -13,7 +13,7 @@
 
                 <!-- 版本信息 -->
                 <div class="version-info">
-                    v1.2.3
+                    v1.0.0
                 </div>
             </div>
         </div>
@@ -26,6 +26,7 @@
                 <TimeSettings v-else-if="activeMenu === 'time'" />
                 <TodoSettings v-else-if="activeMenu === 'todo'" />
                 <WeatherSettings v-else-if="activeMenu === 'weather'" />
+                <HolidaySync v-else-if="activeMenu === 'holiday'" />
                 <AISettings v-else-if="activeMenu === 'ai'" />
                 <ShortcutSettings v-else-if="activeMenu === 'shortcuts'" />
 
@@ -47,6 +48,7 @@ import AISettings from './components/AISettings.vue';
 import TodoSettings from './components/TodoSettings.vue';
 import ShortcutSettings from './components/ShortcutSettings.vue';
 import WeatherSettings from './components/WeatherSettings.vue';
+import HolidaySync from './components/HolidaySync.vue';
 import { SelOption } from "@/model/public"
 
 
@@ -58,6 +60,7 @@ const menuItems = ref<SelOption[]>([
     { value: 'time', label: '时间' },
     { value: 'todo', label: '待办' },
     { value: 'weather', label: '天气' },
+    { value: 'holiday', label: '节假日' },
     { value: 'ai', label: 'AI' },
     { value: 'shortcuts', label: '快捷键' }
 ]);

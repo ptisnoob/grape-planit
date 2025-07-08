@@ -12,7 +12,7 @@
           </label>
         </div>
       </div>
-      <p class="section-description">开启后将显示天气背景和天气信息</p>
+      <p class="section-description">开启后将显示天气背景和天气信息,采用高德的API,个人注册可免费使用.</p>
     </div>
 
     <!-- API配置 -->

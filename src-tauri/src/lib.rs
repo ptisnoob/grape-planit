@@ -7,6 +7,8 @@ use tauri::{Manager, PhysicalPosition};
 pub mod config;
 pub mod countdown;
 pub mod database;
+pub mod holiday;
+pub mod motivation;
 pub mod todo;
 pub mod window_commands;
 
@@ -341,7 +343,16 @@ pub fn run() {
             config::save_shortcut_settings_to_db,
             config::register_global_shortcuts,
             config::load_weather_settings_from_db,
-            config::save_weather_settings_to_db
+            config::save_weather_settings_to_db,
+            holiday::sync_holiday_data,
+            holiday::get_stored_holiday_years,
+            holiday::get_holidays_by_year,
+            holiday::delete_holiday_year,
+            holiday::get_proxy_settings,
+            holiday::save_proxy_settings,
+            motivation::get_today_motivation_cache,
+            motivation::save_today_motivation_cache,
+            motivation::cleanup_motivation_cache
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

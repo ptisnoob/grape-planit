@@ -22,5 +22,14 @@ export const ExtractionTaskPrompt = `
         "level": 0
 }
 
+`
 
+// 每日励志语录prompt
+export const dailyMotivationalQuotePrompt = `
+你的任务是生成一条每日励志语句。该语句需要满足以下要求：
+1. 语句风格阳光。
+2. 语句内容简短。
+3. 能够激励人心。
+4. 控制在30字以内。
+请直接返回生成的每日励志语句。
 `

@@ -177,6 +177,51 @@ pub fn get_migrations() -> Vec<Migration> {
             ALTER TABLE countdown_config_new RENAME TO countdown_config;",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 11,
+            description: "create_holiday_tables",
+            sql: "CREATE TABLE IF NOT EXISTS holiday_years (
+                year INTEGER PRIMARY KEY,
+                papers TEXT NOT NULL,
+                sync_time DATETIME NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS holidays (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                year INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                date TEXT NOT NULL,
+                is_off_day BOOLEAN NOT NULL,
+                FOREIGN KEY (year) REFERENCES holiday_years (year) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_holidays_year ON holidays (year);
+            CREATE INDEX IF NOT EXISTS idx_holidays_date ON holidays (date);",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 12,
+            description: "create_proxy_settings_table",
+            sql: "CREATE TABLE IF NOT EXISTS proxy_settings (
+                id INTEGER PRIMARY KEY,
+                enabled BOOLEAN NOT NULL DEFAULT 0,
+                proxy_url TEXT NOT NULL DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 13,
+            description: "create_motivation_cache_table",
+            sql: "CREATE TABLE IF NOT EXISTS motivation_cache (
+                id INTEGER PRIMARY KEY,
+                content TEXT NOT NULL,
+                cache_date TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );",
+            kind: MigrationKind::Up,
+        },
 
     ]
 }

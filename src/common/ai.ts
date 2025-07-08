@@ -1,4 +1,4 @@
-import { ExtractionTaskPrompt } from "./prompt"
+import { dailyMotivationalQuotePrompt, ExtractionTaskPrompt } from "./prompt"
 import { GDate } from "./date"
 import { TodoVo } from '@/model/todo';
 import { aiApi } from '@/api/services';
@@ -319,6 +319,11 @@ export class AIService {
         return res
     }
 
+    async dailyMotivationalQuote(): Promise<string> {
+        let prompt = `请生成`
+        let response = await this.chat(prompt, false, dailyMotivationalQuotePrompt)
+        return response
+    }
 }
 
 // 创建默认AI服务实例

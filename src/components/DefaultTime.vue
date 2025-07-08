@@ -11,7 +11,7 @@
             <div class="date-info animate__animated animate__fadeInUp animate__delay-1s"
                 v-if="modeStore.currentMode === 'current'">
                 <p class="date-text">{{ currentDate }} {{ currentWeekday }}</p>
-                <p class="holiday-text">下个节日：{{ nextHoliday.name }} (<span
+                <p class="holiday-text">距下个假期：{{ nextHoliday.name }} (还有<span
                         class="holiday-days animate__animated animate__pulse animate__infinite">{{ nextHoliday.days
                         }}</span>天)</p>
             </div>
@@ -36,7 +36,11 @@
             </div>
 
             <h2 class="motivation-text animate__animated animate__fadeInUp animate__delay-2s"
-                v-if="!shouldShowFinalCountdown">{{ motivationText }}</h2>
+                v-if="!shouldShowFinalCountdown"
+                :class="{ 'generating': isGeneratingMotivation }">
+                <span v-if="isGeneratingMotivation" class="loading-dots">生成中</span>
+                <span v-else>{{ motivationText }}</span>
+            </h2>
             <!-- 下班时间设置弹窗 -->
             <WorkEndSettings :visible="showWorkEndSettings" :work-end-time="workEndTime" @close="closeWorkEndSettings"
                 @saved="handleWorkEndSaved" />
@@ -58,6 +62,10 @@ import { useDatabase } from '@/composables/useDatabase'
 import { useTime } from '@/composables/useTime'
 import { useEndStateTimer } from '@/composables/useTimer'
 import { databaseApi } from '@/api/services'
+import { holidayApi } from '@/api/holiday'
+import type { Holiday } from '@/model/holiday'
+import { motivationApi } from '@/api/motivation'
+import defaultAIService from '@/common/ai'
 
 
 // 使用时间相关的 composable
@@ -73,10 +81,11 @@ const {
 } = useTime()
 
 const nextHoliday = ref({
-    name: '国庆节',
-    days: 37
+    name: '--',
+    days: '--'
 })
 const motivationText = ref('请你再坚持一下，终会拨开乌云见明月！')
+const isGeneratingMotivation = ref(false)
 const showSeconds = ref(true) // 控制是否显示秒数
 const countdownData = ref<CountdownData | null>(null)
 const config = ref<CountdownConfig | null>(null)
@@ -319,9 +328,118 @@ const setupCountdownListener = async () => {
 
 // 使用 composable 中的 updateTimeForDefaultDisplay 方法替代
 
-// 使用 composable 中的 calculateNextHoliday 方法
-const updateNextHoliday = () => {
-    nextHoliday.value = getNextHoliday()
+// 生成励志文案
+const generateMotivationText = async (forceGenerate: boolean = false) => {
+    if (isGeneratingMotivation.value) {
+        return
+    }
+    
+    try {
+        isGeneratingMotivation.value = true
+        
+        // 如果不是强制生成，先尝试从缓存获取
+        if (!forceGenerate) {
+            const cached = await motivationApi.getTodayCache()
+            if (cached && cached.content) {
+                motivationText.value = cached.content
+                return
+            }
+        }
+        
+        // 生成新的励志文案
+        const newMotivation = await defaultAIService.dailyMotivationalQuote()
+        if (newMotivation && newMotivation.trim()) {
+            motivationText.value = newMotivation.trim()
+            // 保存到缓存
+            await motivationApi.saveTodayCache(motivationText.value)
+        }
+    } catch (error) {
+        console.error('生成励志文案失败:', error)
+        // 如果生成失败，保持默认文案
+        if (motivationText.value === '请你再坚持一下，终会拨开乌云见明月！') {
+            // 如果还是默认文案，可以尝试使用一些备用文案
+            const backupMotivations = [
+                '每一个不曾起舞的日子，都是对生命的辜负。',
+                '星光不问赶路人，时光不负有心人。',
+                '愿你历尽千帆，归来仍是少年。',
+                '山高路远，但总有人为你点亮明灯。',
+                '纵然前路未卜，也要勇敢地走下去。'
+            ]
+            const randomIndex = Math.floor(Math.random() * backupMotivations.length)
+            motivationText.value = backupMotivations[randomIndex]
+        }
+    } finally {
+        isGeneratingMotivation.value = false
+    }
+}
+
+
+
+// 从数据库获取节假日数据并计算下个节假日
+const updateNextHoliday = async () => {
+    try {
+        const currentYear = new Date().getFullYear()
+        const nextYear = currentYear + 1
+        
+        // 获取当前年份和下一年的节假日数据
+        const [currentYearData, nextYearData] = await Promise.all([
+            holidayApi.getByYear(currentYear),
+            holidayApi.getByYear(nextYear)
+        ])
+        
+        // 提取节假日数组
+        const currentYearHolidays = currentYearData?.days || []
+        const nextYearHolidays = nextYearData?.days || []
+        
+        // 合并两年的节假日数据
+        const allHolidays: Holiday[] = [...currentYearHolidays, ...nextYearHolidays]
+        
+        if (allHolidays.length === 0) {
+            // 如果没有节假日数据，显示 --
+            nextHoliday.value = {
+                name: '--',
+                days: '--'
+            }
+            return
+        }
+        
+        // 找到下一个节假日
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        
+        // 过滤出未来的节假日并按日期排序
+        const futureHolidays = allHolidays
+            .filter(holiday => {
+                const holidayDate = new Date(holiday.date)
+                return holidayDate >= today
+            })
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        
+        if (futureHolidays.length > 0) {
+            const nextHolidayData = futureHolidays[0]
+            const holidayDate = new Date(nextHolidayData.date)
+            const diffTime = holidayDate.getTime() - today.getTime()
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+            
+            nextHoliday.value = {
+                name: nextHolidayData.name,
+                days: diffDays.toString()
+            }
+        } else {
+            // 如果没有未来的节假日，显示 --
+            nextHoliday.value = {
+                name: '--',
+                days: '--'
+            }
+        }
+    } catch (error) {
+        console.error('获取节假日数据失败:', error)
+        // 出错时显示 --
+        nextHoliday.value = {
+            name: '--',
+            days: '--'
+        }
+    }
 }
 
 
@@ -343,7 +461,17 @@ onMounted(async () => {
 
     // 启动时间更新定时器
     startTimer(updateTimeForDefaultDisplay);
-    updateNextHoliday();
+    await updateNextHoliday();
+    
+    // 生成励志文案（优先从缓存获取）
+    await generateMotivationText(false);
+    
+    // 清理过期的励志文案缓存
+    try {
+        await motivationApi.cleanupCache();
+    } catch (error) {
+        console.error('清理励志文案缓存失败:', error);
+    }
 });
 
 onUnmounted(() => {
@@ -495,6 +623,47 @@ onUnmounted(() => {
     color: var(--text-primary);
     margin: 15px 0 0 0;
     max-width: 500px;
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    padding: 12px 16px;
+    position: relative;
+}
+
+
+
+.motivation-text.generating {
+    color: #999;
+    cursor: wait;
+    background-color: rgba(153, 153, 153, 0.1);
+}
+
+.loading-dots {
+    position: relative;
+}
+
+.loading-dots::after {
+    content: '';
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background-color: #999;
+    animation: loading-dots 1.5s infinite;
+}
+
+@keyframes loading-dots {
+    0%, 20% {
+        box-shadow: 0 0 0 0 #999, 8px 0 0 0 transparent, 16px 0 0 0 transparent;
+    }
+    40% {
+        box-shadow: 0 0 0 0 transparent, 8px 0 0 0 #999, 16px 0 0 0 transparent;
+    }
+    60%, 100% {
+        box-shadow: 0 0 0 0 transparent, 8px 0 0 0 transparent, 16px 0 0 0 #999;
+    }
 }
 
 /* 动画延迟调整 */

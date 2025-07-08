@@ -11,8 +11,8 @@ import { useModeStore } from '@/store/mode';
 const modeStore = useModeStore();
 
 const modes = [
-  { key: 'current', name: '默认' },
-  { key: 'workEnd', name: '下班' }
+  { key: 'current', name: '当前时间' },
+  { key: 'workEnd', name: '下班倒计时' }
 ];
 
 const currentModeName = computed(() => {
