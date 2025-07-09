@@ -10,7 +10,7 @@ export class DatabaseApi {
    * 从数据库加载倒计时配置
    */
   static async loadCountdownConfig(): Promise<CountdownConfig | null> {
-    const response = await api.call<CountdownConfig>('load_countdown_config_from_db');
+    const response = await api.call<CountdownConfig>('load_countdown_config_from_db', {}, { silent: true });
     return response.success ? response.data || null : null;
   }
 

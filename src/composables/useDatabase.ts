@@ -11,9 +11,7 @@ export function useDatabase() {
    */
   const loadConfigFromDb = async (): Promise<CountdownConfig | null> => {
     try {
-      console.log('🔧 [useDatabase] 开始调用 load_countdown_config_from_db...');
       const result = await databaseApi.countdown.load();
-      console.log('🔧 [useDatabase] load_countdown_config_from_db 成功返回:', result);
       return result;
     } catch (error) {
       console.error('❌ [useDatabase] 从数据库加载配置失败:', error);

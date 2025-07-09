@@ -1,6 +1,8 @@
 <template>
   <div class="top-time-display flex-r">
-    <div class="time-carousel flex-1" :style="{ transform: shouldShowCarousel ? `translateY(-${currentIndex * 100}%)` : 'translateY(0)' }" @click="navToTime">
+    <div class="time-carousel flex-1"
+      :style="{ transform: shouldShowCarousel ? `translateY(-${currentIndex * 100}%)` : 'translateY(0)' }"
+      @click="navToTime">
       <!-- 当前时间 -->
       <div class="time-item current-time">
         <span class="time-text">{{ currentTimeText }}</span>
@@ -16,9 +18,7 @@
         <span class="placeholder-text">等待下班倒计时...</span>
       </div>
     </div>
-    <SettingsBtn />
-    <ThemeToggle />
-    <Close />
+    <HeaderRight />
   </div>
 </template>
 
@@ -31,9 +31,7 @@ import { CountdownData, CountdownConfig } from '@/model/countdown'
 import { useTime, useCountdown } from '@/composables/useTime'
 import { useCarousel } from '@/composables/useCarousel'
 import { databaseApi } from '@/api/services'
-import Close from './Close.vue'
-import ThemeToggle from './ThemeToggle.vue';
-import SettingsBtn from './SettingsBtn.vue'
+import HeaderRight from './HeaderRight.vue'
 interface CountdownItem {
   id: string
   text: string
@@ -177,7 +175,7 @@ onMounted(async () => {
   if (shouldShowCarousel.value) {
     startCarousel()
   }
-  
+
   // 初始化用户操作时间
   lastUserActionTime.value = Date.now()
 })
@@ -281,5 +279,4 @@ onUnmounted(() => {
 .time-item {
   animation: slideIn 0.3s ease-out;
 }
-
 </style>

@@ -974,28 +974,9 @@ onUnmounted(() => {
   overflow-y: auto;
   height: 100%;
   /* 优化滚动条样式 */
-  scrollbar-width: thin;
+  scrollbar-width: none;
   scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
   padding-top: 46px;
-}
-
-/* Webkit浏览器滚动条样式 */
-.list-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.list-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.list-container::-webkit-scrollbar-thumb {
-  background-color: rgba(155, 155, 155, 0.5);
-  border-radius: 3px;
-  transition: background-color 0.3s ease;
-}
-
-.list-container::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(155, 155, 155, 0.8);
 }
 
 .drag-area {

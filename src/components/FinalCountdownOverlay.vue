@@ -79,7 +79,7 @@ const setupCountdownListener = async () => {
 
             // 只处理下班倒计时数据
             if (newData.mode === 'workEnd') {
-                console.log('✅ [FinalCountdownOverlay] 更新下班倒计时数据')
+                // console.log('✅ [FinalCountdownOverlay] 更新下班倒计时数据')
 
                 // 获取配置中的beforeTime
                 try {

@@ -10,11 +10,7 @@
                 <Icon name="plus" :size="18" />
             </button>
         </div>
-        <div class="header-right">
-            <ThemeToggle />
-            <SettingsBtn />
-            <Close />
-        </div>
+        <HeaderRight />
     </header>
 </template>
 
@@ -22,9 +18,7 @@
 import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ModeToggle from './ModeToggle.vue';
-import ThemeToggle from './ThemeToggle.vue';
-import SettingsBtn from "./SettingsBtn.vue"
-import Close from './Close.vue';
+import HeaderRight from './HeaderRight.vue'
 
 defineProps<{ isVisible: boolean }>();
 
@@ -71,7 +65,7 @@ const handleModeChange = (mode: string) => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 16px;
+    padding: 10px;
     width: 100%;
     position: fixed;
     top: -60px;

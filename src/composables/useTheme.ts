@@ -67,9 +67,9 @@ export const useTheme = () => {
 
   const getThemeIcon = computed(() => {
     switch (currentTheme.value) {
-      case 'light': return 'sun'
-      case 'dark': return 'moon'
-      case 'auto': return 'A'
+      case 'light': return 'sun-fill'
+      case 'dark': return 'moon-fill'
+      case 'auto': return 'contrast-alt'
       default: return 'sun'
     }
   })
