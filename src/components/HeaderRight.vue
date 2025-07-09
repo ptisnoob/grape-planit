@@ -1,6 +1,7 @@
 <template>
     <div class="flex-r-c-c header-right">
-        <Icon :name="currentNav.icon" :size="18" @click="toggleNav" />
+        <div v-if="currentNavIndex === 1" class="link-text" @click="toggleMode">{{ currentMode.label }}</div>
+        <div class="link-text" @click="toggleNav">{{ currentNav.icon }}</div>
         <div class="gap-line"></div>
         <Icon :name="getThemeIcon" :size="18" @click="toggleTheme" />
         <Icon name="settings" :size="18" @click="openSettings" />
@@ -15,15 +16,22 @@ import { useTheme } from '@/composables/useTheme'
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
 
+const { initTheme, toggleTheme, getThemeIcon } = useTheme()
 const router = useRouter();
 const route = useRoute();
+
 const navs = [
-    { path: '/', icon: 'ordered-list' },
-    { path: '/list', icon: 'clock-circle' },
+    { path: '/', icon: '时间' },
+    { path: '/list', icon: 'TODO' },
 ];
+const modes = [
+    { label: '列表', value: 'list' },
+    { label: '象限', value: 'list' },
+    { label: '日历', value: 'list' },
+]
+const currentModeIndex = ref(0)
+const currentMode = computed(() => modes[currentModeIndex.value])
 
-
-const { initTheme, toggleTheme, getThemeIcon } = useTheme()
 const handleClose = async () => {
     try {
         await windowApi.hideToTray()
@@ -51,6 +59,10 @@ const toggleNav = () => {
     router.push(navs[currentNavIndex.value].path);
 };
 
+const toggleMode = () => {
+    currentModeIndex.value = (currentModeIndex.value + 1) % modes.length;
+}
+
 onMounted(() => {
     initTheme()
 })
@@ -66,6 +78,12 @@ onMounted(() => {
         height: 100%;
         background-color: #a5a3a3;
         margin: 0 3px;
+    }
+
+    .link-text {
+        font-size: 14px;
+        cursor: pointer;
+        user-select: none;
     }
 }
 </style>
