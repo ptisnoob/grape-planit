@@ -13,7 +13,6 @@ import AppHeader from '@/components/AppHeader.vue'
 import { useTheme } from '@/composables/useTheme'
 import { useAppStore } from '@/store/app'
 import { databaseApi, todoApi } from '@/api/services'
-import { WindowSettings } from '@/model/settings'
 
 const isHeaderVisible = ref(false)
 const { initTheme } = useTheme()

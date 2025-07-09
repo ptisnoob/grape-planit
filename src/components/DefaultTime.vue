@@ -503,7 +503,6 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 20px;
 }
 
 
@@ -620,7 +619,6 @@ onUnmounted(() => {
     font-weight: 400;
     line-height: 1.6;
     color: var(--text-primary);
-    margin: 15px 0 0 0;
     max-width: 500px;
     transition: all 0.3s ease;
     border-radius: 8px;

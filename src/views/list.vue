@@ -1,12 +1,16 @@
 <template>
   <WeatherBackground :show-weather-info="false" container-class="list-view">
     <!-- 专注模式界面 -->
-    <div v-if="focusMode.isActive" class="focus-mode-overlay">
+    <div v-if="focusMode.isActive" class="focus-mode-overlay" @mouseenter="isHoveringFocusMode = true"
+      @mouseleave="isHoveringFocusMode = false">
       <div class="focus-mode-container">
         <!-- 退出按钮 -->
-        <button class="focus-exit-btn" @click="exitFocusMode" title="退出专注模式">
-          <Icon name="close" :size="20" />
-        </button>
+        <transition enter-active-class="animate__animated animate__slideInDown animate__faster"
+          leave-active-class="animate__animated animate__slideOutUp animate__faster">
+          <button v-if="isHoveringFocusMode" class="focus-exit-btn" @click="exitFocusMode" title="退出专注模式">
+            <Icon name="close" :size="20" />
+          </button>
+        </transition>
 
         <!-- 专注内容 -->
         <div class="focus-content">
@@ -20,16 +24,17 @@
           </div>
 
           <!-- 操作按钮 -->
-          <div class="focus-actions">
-            <button class="focus-action-btn pause-btn" @click="toggleFocusTimer">
-              <Icon :name="focusMode.isPaused ? 'play' : 'pause'" :size="16" />
-              {{ focusMode.isPaused ? '继续' : '暂停' }}
-            </button>
-            <button class="focus-action-btn complete-btn" @click="completeFocusedTodo">
-              <Icon name="check" :size="16" />
-              完成任务
-            </button>
-          </div>
+          <transition enter-active-class="animate__animated animate__slideInUp animate__faster"
+            leave-active-class="animate__animated animate__slideOutDown animate__faster">
+            <div v-if="isHoveringFocusMode" class="focus-actions">
+              <button class="focus-action-btn pause-btn" @click="toggleFocusTimer">
+                {{ focusMode.isPaused ? '继续' : '暂停' }}
+              </button>
+              <button class="focus-action-btn complete-btn" @click="completeFocusedTodo">
+                完成任务
+              </button>
+            </div>
+          </transition>
         </div>
       </div>
     </div>
@@ -56,7 +61,7 @@
                 <span class="item-title">{{ item.title }}</span>
               </div>
               <span class="item-due-date" :class="getDueDateClass(item)">{{ getDueDateText(item)
-              }}</span>
+                }}</span>
             </div>
             <transition name="expand">
               <div v-if="item.expanded" class="item-notes">
@@ -130,6 +135,9 @@ const focusMode = ref({
   elapsedTime: 0,
   isPaused: false
 });
+
+// 专注模式鼠标悬停状态
+const isHoveringFocusMode = ref(false);
 
 const list = ref<Todo[]>([]);
 const filterDays = ref(5); // 默认显示最近5天

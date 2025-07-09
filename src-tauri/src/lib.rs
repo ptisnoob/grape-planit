@@ -299,6 +299,7 @@ pub fn run() {
 
             let menu = create_tray_menu(app.handle()).expect("Failed to create tray menu");
             TrayIconBuilder::with_id("tray")
+                .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .on_menu_event(move |app, event| handle_menu_event(app, event))
                 .on_tray_icon_event(handle_tray_event)
