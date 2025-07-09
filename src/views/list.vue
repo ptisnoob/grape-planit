@@ -1,72 +1,109 @@
 <template>
   <WeatherBackground :show-weather-info="false" container-class="list-view">
-    <div class="list-view" @contextmenu.prevent>
-      <!-- 顶部时间显示组件 -->
-      <TopTimeDisplay />
-    
-    <div class="add-button-container">
-      <router-link to="/add" class="add-btn">+</router-link>
-    </div>
-    <div class="list-container">
-      <div v-if="list.length > 0" class="drag-area">
-        <div v-for="(item, index) in list" :key="item.id" class="list-item"
-          :class="{ 'is-expanded': item.expanded, 'is-dragging': isDragging && dragIndex === index }"
-          @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPressAction" @mouseleave="cancelLongPressAction"
-          @click="handleClick(item)" @contextmenu.prevent="showContextMenu($event, item, index)">
-          <div class="item-header">
-            <div class="title-with-level">
-              <div class="level-color-block" :class="getLevelClass(item.level)" :title="getLevelText(item.level)"></div>
-              <span class="item-title">{{ item.title }}</span>
-            </div>
-            <span class="item-due-date" :class="getDueDateClass(item)">{{ getDueDateText(item)
-              }}</span>
+    <!-- 专注模式界面 -->
+    <div v-if="focusMode.isActive" class="focus-mode-overlay">
+      <div class="focus-mode-container">
+        <!-- 退出按钮 -->
+        <button class="focus-exit-btn" @click="exitFocusMode" title="退出专注模式">
+          <Icon name="close" :size="20" />
+        </button>
+
+        <!-- 专注内容 -->
+        <div class="focus-content">
+          <!-- 任务标题 -->
+          <h1 class="focus-title">{{ focusMode.todo?.title }}</h1>
+          <!-- 任务描述 -->
+          <p v-if="focusMode.todo?.notes" class="focus-notes">{{ focusMode.todo.notes }}</p>
+          <!-- 专注计时器 -->
+          <div class="focus-timer">
+            <div class="timer-display">{{ formatFocusTime(focusMode.elapsedTime) }}</div>
           </div>
-          <transition name="expand">
-            <div v-if="item.expanded" class="item-notes">
-              <p>{{ item.notes }}</p>
-            </div>
-          </transition>
+
+          <!-- 操作按钮 -->
+          <div class="focus-actions">
+            <button class="focus-action-btn pause-btn" @click="toggleFocusTimer">
+              <Icon :name="focusMode.isPaused ? 'play' : 'pause'" :size="16" />
+              {{ focusMode.isPaused ? '继续' : '暂停' }}
+            </button>
+            <button class="focus-action-btn complete-btn" @click="completeFocusedTodo">
+              <Icon name="check" :size="16" />
+              完成任务
+            </button>
+          </div>
         </div>
       </div>
-      <Empty v-else>暂无待办事项</Empty>
     </div>
 
-    <!-- 右键菜单 -->
-    <div v-if="contextMenu.visible" class="context-menu" :style="contextMenuStyle" @click.stop>
-      <div class="context-menu-item" @click="completeTodo">
-        <span class="menu-icon">✅</span>
-        <span>完成</span>
-      </div>
-      <div class="context-menu-item" @click="editTodo">
-        <span class="menu-icon">✏️</span>
-        <span>修改</span>
-      </div>
-      <div class="context-menu-item danger" @click="deleteTodo">
-        <span class="menu-icon">🗑️</span>
-        <span>删除</span>
-      </div>
-    </div>
+    <!-- 正常列表界面 -->
+    <div v-else class="list-view" @contextmenu.prevent>
+      <!-- 顶部时间显示组件 -->
+      <TopTimeDisplay />
 
-    <!-- 删除区域 -->
-    <div v-show="isDragging" class="drop-zone delete-zone" :class="{ 'is-active': dragAction === 'delete' }">
-      <div class="drop-zone-content">
-        <div class="drop-zone-icon">🗑️</div>
-        <span>{{ dragAction === 'delete' ? '松手删除' : '删除' }}</span>
+      <div class="add-button-container">
+        <router-link to="/add" class="add-btn">+</router-link>
       </div>
-    </div>
-
-    <!-- 完成区域 -->
-    <div v-show="isDragging" class="drop-zone complete-zone" :class="{ 'is-active': dragAction === 'complete' }">
-      <div class="drop-zone-content">
-        <div class="drop-zone-icon">✅</div>
-        <span>{{ dragAction === 'complete' ? '松手完成' : '完成' }}</span>
+      <div class="list-container">
+        <div v-if="list.length > 0" class="drag-area">
+          <div v-for="(item, index) in list" :key="item.id" class="list-item"
+            :class="{ 'is-expanded': item.expanded, 'is-dragging': isDragging && dragIndex === index }"
+            @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPressAction"
+            @mouseleave="cancelLongPressAction" @click="handleClick(item)" @dblclick="enterFocusMode(item)"
+            @contextmenu.prevent="showContextMenu($event, item, index)">
+            <div class="item-header">
+              <div class="title-with-level">
+                <div class="level-color-block" :class="getLevelClass(item.level)" :title="getLevelText(item.level)">
+                </div>
+                <span class="item-title">{{ item.title }}</span>
+              </div>
+              <span class="item-due-date" :class="getDueDateClass(item)">{{ getDueDateText(item)
+              }}</span>
+            </div>
+            <transition name="expand">
+              <div v-if="item.expanded" class="item-notes">
+                <p>{{ item.notes }}</p>
+              </div>
+            </transition>
+          </div>
+        </div>
+        <Empty v-else>暂无待办事项</Empty>
       </div>
-    </div>
 
-    <!-- 跟随指针的拖拽预览 -->
-    <div v-if="isDragging && dragPreview" class="drag-preview" :style="previewStyle">
-      {{ dragPreview.title }}
-    </div>
+      <!-- 右键菜单 -->
+      <div v-if="contextMenu.visible" class="context-menu" :style="contextMenuStyle" @click.stop>
+        <div class="context-menu-item" @click="completeTodo">
+          <span class="menu-icon">✅</span>
+          <span>完成</span>
+        </div>
+        <div class="context-menu-item" @click="editTodo">
+          <span class="menu-icon">✏️</span>
+          <span>修改</span>
+        </div>
+        <div class="context-menu-item danger" @click="deleteTodo">
+          <span class="menu-icon">🗑️</span>
+          <span>删除</span>
+        </div>
+      </div>
+
+      <!-- 删除区域 -->
+      <div v-show="isDragging" class="drop-zone delete-zone" :class="{ 'is-active': dragAction === 'delete' }">
+        <div class="drop-zone-content">
+          <div class="drop-zone-icon">🗑️</div>
+          <span>{{ dragAction === 'delete' ? '松手删除' : '删除' }}</span>
+        </div>
+      </div>
+
+      <!-- 完成区域 -->
+      <div v-show="isDragging" class="drop-zone complete-zone" :class="{ 'is-active': dragAction === 'complete' }">
+        <div class="drop-zone-content">
+          <div class="drop-zone-icon">✅</div>
+          <span>{{ dragAction === 'complete' ? '松手完成' : '完成' }}</span>
+        </div>
+      </div>
+
+      <!-- 跟随指针的拖拽预览 -->
+      <div v-if="isDragging && dragPreview" class="drag-preview" :style="previewStyle">
+        {{ dragPreview.title }}
+      </div>
     </div>
   </WeatherBackground>
 </template>
@@ -79,10 +116,20 @@ import { GDate } from "@/common/date"
 import Empty from '@/components/Empty.vue';
 import TopTimeDisplay from '@/components/TopTimeDisplay.vue';
 import WeatherBackground from '@/components/WeatherBackground.vue';
-import { useLongPressTimer, useUIFeedbackTimer } from '@/composables/useTimer';
+import Icon from '@/components/Icon.vue';
+import { useLongPressTimer, useUIFeedbackTimer, useTimer } from '@/composables/useTimer';
 import { databaseApi, todoApi } from '@/api/services';
 
 const router = useRouter();
+
+// 专注模式状态
+const focusMode = ref({
+  isActive: false,
+  todo: null as Todo | null,
+  startTime: 0,
+  elapsedTime: 0,
+  isPaused: false
+});
 
 const list = ref<Todo[]>([]);
 const filterDays = ref(5); // 默认显示最近5天
@@ -92,7 +139,7 @@ const loadTodos = async () => {
     // 从数据库加载窗口设置，获取recent_days配置
     const settings = await databaseApi.window.load();
     filterDays.value = (settings as any).recent_days || 5;
-    
+
     const todos = await todoApi.getRecent(filterDays.value);
     list.value = (todos as Todo[]).map(todo => ({ ...todo, expanded: false }));
     console.log('Loaded todos with recent days:', filterDays.value, todos);
@@ -133,6 +180,8 @@ const contextMenu = ref({
 const { startLongPress, cancelLongPress } = useLongPressTimer();
 // 使用UI反馈定时器管理
 const { createFeedbackTimer } = useUIFeedbackTimer();
+// 使用专注模式定时器管理
+const { createTimer, clearTimer } = useTimer();
 
 const previewStyle = computed(() => ({
   top: pointer.value.y + 'px',
@@ -149,15 +198,15 @@ const contextMenuStyle = computed(() => ({
 const showContextMenu = (event: MouseEvent, todo: Todo, index: number) => {
   event.preventDefault();
   event.stopPropagation();
-  
+
   const menuWidth = 120;
   const menuHeight = 120;
   const windowWidth = window.innerWidth;
   const windowHeight = window.innerHeight;
-  
+
   let x = event.clientX;
   let y = event.clientY;
-  
+
   // 防止菜单超出屏幕边界
   if (x + menuWidth > windowWidth) {
     x = windowWidth - menuWidth - 10;
@@ -165,7 +214,7 @@ const showContextMenu = (event: MouseEvent, todo: Todo, index: number) => {
   if (y + menuHeight > windowHeight) {
     y = windowHeight - menuHeight - 10;
   }
-  
+
   contextMenu.value = {
     visible: true,
     x,
@@ -192,7 +241,7 @@ const handleGlobalClick = (event: MouseEvent) => {
 // 完成todo
 const completeTodo = async () => {
   if (!contextMenu.value.todo) return;
-  
+
   try {
     const updatedTodo = { ...contextMenu.value.todo, status: 1 };
     await todoApi.update(updatedTodo);
@@ -206,7 +255,7 @@ const completeTodo = async () => {
 // 编辑todo
 const editTodo = () => {
   if (!contextMenu.value.todo) return;
-  
+
   router.push(`/add?id=${contextMenu.value.todo.id}`);
   hideContextMenu();
 };
@@ -214,7 +263,7 @@ const editTodo = () => {
 // 删除todo
 const deleteTodo = async () => {
   if (!contextMenu.value.todo) return;
-  
+
   try {
     await todoApi.delete(contextMenu.value.todo.id);
     list.value.splice(contextMenu.value.index, 1);
@@ -292,13 +341,13 @@ const getDueDateText = (item: Todo) => {
 
   const dueDate = new GDate(dueTime);
   const today = new GDate();
-  
+
   // 使用日期的开始时间进行比较，确保计算准确
   const dueDateStart = dueDate.getStartOfDay();
   const todayStart = today.getStartOfDay();
-  
+
   const diffDays = Math.round((dueDateStart.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays < 0) {
     const overdueDays = Math.abs(diffDays);
     return `已逾期 ${overdueDays} 天`;
@@ -345,11 +394,11 @@ const getDueDateClass = (item: Todo) => {
 
   const dueDate = new GDate(dueTime);
   const today = new GDate();
-  
+
   // 使用日期的开始时间进行比较，确保计算准确
   const dueDateStart = dueDate.getStartOfDay();
   const todayStart = today.getStartOfDay();
-  
+
   const diffDays = Math.round((dueDateStart.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {
@@ -410,9 +459,421 @@ const onMouseUp = async () => {
   window.removeEventListener('mousemove', onMouseMove);
   window.removeEventListener('mouseup', onMouseUp);
 };
+
+// 专注模式相关函数
+const enterFocusMode = (todo: Todo) => {
+  focusMode.value = {
+    isActive: true,
+    todo: todo,
+    startTime: Date.now(),
+    elapsedTime: 0,
+    isPaused: false
+  };
+  startFocusTimer();
+};
+
+const exitFocusMode = () => {
+  clearTimer('focusTimer');
+  focusMode.value = {
+    isActive: false,
+    todo: null,
+    startTime: 0,
+    elapsedTime: 0,
+    isPaused: false
+  };
+};
+
+const startFocusTimer = () => {
+  // 清除已存在的专注定时器
+  clearTimer('focusTimer');
+
+  // 创建新的专注定时器
+  const updateTimer = () => {
+    if (!focusMode.value.isPaused) {
+      focusMode.value.elapsedTime = Date.now() - focusMode.value.startTime;
+    }
+    // 递归创建下一个定时器
+    createTimer('focusTimer', updateTimer, 1000);
+  };
+
+  createTimer('focusTimer', updateTimer, 1000);
+};
+
+const toggleFocusTimer = () => {
+  if (focusMode.value.isPaused) {
+    // 恢复计时
+    focusMode.value.startTime = Date.now() - focusMode.value.elapsedTime;
+    focusMode.value.isPaused = false;
+    startFocusTimer();
+  } else {
+    // 暂停计时
+    focusMode.value.isPaused = true;
+    clearTimer('focusTimer');
+  }
+};
+
+const completeFocusedTodo = async () => {
+  if (!focusMode.value.todo) return;
+
+  try {
+    const updatedTodo = { ...focusMode.value.todo, status: 1 };
+    await todoApi.update(updatedTodo);
+
+    // 从列表中移除已完成的任务
+    const index = list.value.findIndex(item => item.id === focusMode.value.todo?.id);
+    if (index !== -1) {
+      list.value.splice(index, 1);
+    }
+
+    exitFocusMode();
+  } catch (error) {
+    console.error('Failed to complete focused todo:', error);
+  }
+};
+
+const formatFocusTime = (milliseconds: number) => {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  } else {
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+};
+
+// 注意：getLevelClass 函数已在上方定义，此处删除重复定义
+
+// 清理定时器
+onUnmounted(() => {
+  clearTimer('focusTimer');
+});
 </script>
 
 <style scoped>
+/* 专注模式样式 */
+.focus-mode-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg,
+      #1a1a2e 0%,
+      #16213e 25%,
+      #0f3460 50%,
+      #533483 75%,
+      #7209b7 100%);
+  overflow: hidden;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.focus-mode-container {
+  position: relative;
+  width: 85%;
+  max-width: 500px;
+  max-height: 85vh;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(15px);
+  padding: 30px 25px;
+  text-align: center;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.6s ease-out;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.focus-exit-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.focus-exit-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.focus-content {
+  color: white;
+}
+
+.focus-priority {
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: center;
+}
+
+.focus-level-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.focus-level-indicator.level-important-not-urgent {
+  background: #10b981;
+}
+
+.focus-level-indicator.level-important-urgent {
+  background: #f59e0b;
+}
+
+.focus-level-indicator.level-not-important-not-urgent {
+  background: #ef4444;
+}
+
+.focus-level-indicator.level-not-important-urgent {
+  background: #8b5cf6;
+}
+
+.focus-title {
+  font-size: 1.8rem;
+  font-weight: bold;
+  margin: 0 0 12px 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  line-height: 1.3;
+  max-height: 2.6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.focus-notes {
+  font-size: 0.95rem;
+  opacity: 0.85;
+  margin: 0 0 20px 0;
+  line-height: 1.4;
+  max-height: 2.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.focus-timer {
+  margin: 25px 0;
+  flex-shrink: 0;
+}
+
+.timer-display {
+  font-size: 3rem;
+  font-weight: 300;
+  font-family: 'Courier New', monospace;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  letter-spacing: 2px;
+}
+
+.timer-label {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.focus-indicator {
+  margin: 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.focus-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: focusPulse 1.5s infinite;
+}
+
+.focus-status {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.focus-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-shrink: 0;
+}
+
+.focus-action-btn {
+  padding: 10px 18px;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+  min-width: 80px;
+  justify-content: center;
+}
+
+.focus-action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.focus-action-btn.pause-btn:hover {
+  background: rgba(255, 193, 7, 0.15);
+  border-color: rgba(255, 193, 7, 0.4);
+}
+
+.focus-action-btn.complete-btn:hover {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* 动画定义 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes focusPulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(1.5);
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .focus-mode-container {
+    width: 95%;
+    max-width: 400px;
+    max-height: 90vh;
+    padding: 20px 15px;
+  }
+
+  .focus-title {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+  }
+
+  .focus-notes {
+    font-size: 0.85rem;
+    margin-bottom: 15px;
+  }
+
+  .timer-display {
+    font-size: 2.5rem;
+  }
+
+  .focus-timer {
+    margin: 20px 0;
+  }
+
+  .focus-indicator {
+    margin: 15px 0;
+  }
+
+  .focus-actions {
+    gap: 8px;
+    margin-top: 15px;
+  }
+
+  .focus-action-btn {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    min-width: 70px;
+  }
+}
+
+@media (max-height: 600px) {
+  .focus-mode-container {
+    max-height: 95vh;
+    padding: 15px;
+  }
+
+  .focus-title {
+    font-size: 1.4rem;
+    margin-bottom: 6px;
+  }
+
+  .focus-notes {
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+  }
+
+  .timer-display {
+    font-size: 2.2rem;
+  }
+
+  .focus-timer {
+    margin: 15px 0;
+  }
+
+  .focus-indicator {
+    margin: 10px 0;
+  }
+
+  .focus-actions {
+    margin-top: 10px;
+  }
+}
+
+/* 原有样式保持不变 */
 .filter-container {
   position: fixed;
   top: 20px;
@@ -925,6 +1386,7 @@ const onMouseUp = async () => {
     opacity: 0;
     transform: scale(0.95) translateY(-5px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
