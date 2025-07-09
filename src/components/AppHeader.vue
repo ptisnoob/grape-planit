@@ -3,7 +3,7 @@
         <div class="header-left">
             <ModeToggle v-if="route.path === '/'" @mode-changed="handleModeChange" />
         </div>
-        <HeaderRight />
+        <HeaderRight  />
     </header>
 </template>
 
@@ -16,8 +16,6 @@ defineProps<{ isVisible: boolean }>();
 
 const route = useRoute();
 const emit = defineEmits(['mode-changed']);
-
-
 
 const handleModeChange = (mode: string) => {
     emit('mode-changed', mode);

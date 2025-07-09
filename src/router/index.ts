@@ -19,16 +19,6 @@ const routes: RouteRecordRaw[] = [
                 component: () => import('@/views/list.vue')
             },
             {
-                path: 'calendar',
-                name: 'Calendar',
-                component: () => import('@/views/Calendar.vue')
-            },
-            {
-                path: 'about',
-                name: 'About',
-                component: () => import('@/views/About.vue')
-            },
-            {
                 path: 'add',
                 name: 'Add',
                 component: () => import('@/views/AddTodo.vue')

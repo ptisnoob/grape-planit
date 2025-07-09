@@ -19,6 +19,7 @@ import { useRoute } from 'vue-router';
 const { initTheme, toggleTheme, getThemeIcon } = useTheme()
 const router = useRouter();
 const route = useRoute();
+const emit = defineEmits(['changeMode'])
 
 const navs = [
     { path: '/', icon: '时间' },
@@ -26,8 +27,8 @@ const navs = [
 ];
 const modes = [
     { label: '列表', value: 'list' },
-    { label: '象限', value: 'list' },
-    { label: '日历', value: 'list' },
+    { label: '分类', value: 'category' }
+    // { label: '日历', value: 'calendar' },
 ]
 const currentModeIndex = ref(0)
 const currentMode = computed(() => modes[currentModeIndex.value])
@@ -61,6 +62,7 @@ const toggleNav = () => {
 
 const toggleMode = () => {
     currentModeIndex.value = (currentModeIndex.value + 1) % modes.length;
+    emit('changeMode', currentMode.value.value)
 }
 
 onMounted(() => {

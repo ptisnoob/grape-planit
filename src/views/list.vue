@@ -1,5 +1,7 @@
 <template>
   <WeatherBackground :show-weather-info="false" container-class="list-view">
+    <!-- 应用头部 -->
+    <!-- <AppHeader @mode-changed="handleModeChange" /> -->
     <!-- 专注模式界面 -->
     <div v-if="focusMode.isActive" class="focus-mode-overlay" @mouseenter="isHoveringFocusMode = true"
       @mouseleave="isHoveringFocusMode = false">
@@ -42,90 +44,40 @@
     <!-- 正常列表界面 -->
     <div v-else class="list-view" @contextmenu.prevent>
       <!-- 顶部时间显示组件 -->
-      <TopTimeDisplay />
+      <TopTimeDisplay @changeMode="handleModeChange" />
 
       <div class="add-button-container">
         <router-link to="/add" class="add-btn">+</router-link>
       </div>
-      <div class="list-container">
-        <div v-if="list.length > 0" class="drag-area">
-          <div v-for="(item, index) in list" :key="item.id" class="list-item"
-            :class="{ 'is-expanded': item.expanded, 'is-dragging': isDragging && dragIndex === index }"
-            @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPressAction"
-            @mouseleave="cancelLongPressAction" @click="handleClick(item)" @dblclick="enterFocusMode(item)"
-            @contextmenu.prevent="showContextMenu($event, item, index)">
-            <div class="item-header">
-              <div class="title-with-level">
-                <div class="level-color-block" :class="getLevelClass(item.level)" :title="getLevelText(item.level)">
-                </div>
-                <span class="item-title">{{ item.title }}</span>
-              </div>
-              <span class="item-due-date" :class="getDueDateClass(item)">{{ getDueDateText(item)
-                }}</span>
-            </div>
-            <transition name="expand">
-              <div v-if="item.expanded" class="item-notes">
-                <p>{{ item.notes }}</p>
-              </div>
-            </transition>
-          </div>
-        </div>
-        <Empty v-else>暂无待办事项</Empty>
-      </div>
 
-      <!-- 右键菜单 -->
-      <div v-if="contextMenu.visible" class="context-menu" :style="contextMenuStyle" @click.stop>
-        <div class="context-menu-item" @click="completeTodo">
-          <span class="menu-icon">✅</span>
-          <span>完成</span>
-        </div>
-        <div class="context-menu-item" @click="editTodo">
-          <span class="menu-icon">✏️</span>
-          <span>修改</span>
-        </div>
-        <div class="context-menu-item danger" @click="deleteTodo">
-          <span class="menu-icon">🗑️</span>
-          <span>删除</span>
-        </div>
-      </div>
+      <!-- 根据显示模式切换不同的视图组件 -->
+      <ListView v-if="displayMode === 'list'" :list="list" @update:list="updateList"
+        @enter-focus-mode="enterFocusMode" />
 
-      <!-- 删除区域 -->
-      <div v-show="isDragging" class="drop-zone delete-zone" :class="{ 'is-active': dragAction === 'delete' }">
-        <div class="drop-zone-content">
-          <div class="drop-zone-icon">🗑️</div>
-          <span>{{ dragAction === 'delete' ? '松手删除' : '删除' }}</span>
-        </div>
-      </div>
+      <CategoryView v-else-if="displayMode === 'category'" :list="list" @enter-focus-mode="enterFocusMode"
+        @item-click="handleCategoryItemClick" />
 
-      <!-- 完成区域 -->
-      <div v-show="isDragging" class="drop-zone complete-zone" :class="{ 'is-active': dragAction === 'complete' }">
-        <div class="drop-zone-content">
-          <div class="drop-zone-icon">✅</div>
-          <span>{{ dragAction === 'complete' ? '松手完成' : '完成' }}</span>
-        </div>
-      </div>
-
-      <!-- 跟随指针的拖拽预览 -->
-      <div v-if="isDragging && dragPreview" class="drag-preview" :style="previewStyle">
-        {{ dragPreview.title }}
-      </div>
+      <CalendarView v-else-if="displayMode === 'calendar'" :list="list" @enter-focus-mode="enterFocusMode"
+        @item-click="handleCalendarItemClick" />
     </div>
   </WeatherBackground>
 </template>
 
 <script setup lang="ts">
-import { RouterLink, useRouter } from 'vue-router';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { RouterLink } from 'vue-router';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Todo } from '@/model/todo';
-import { GDate } from "@/common/date"
-import Empty from '@/components/Empty.vue';
 import TopTimeDisplay from '@/components/TopTimeDisplay.vue';
 import WeatherBackground from '@/components/WeatherBackground.vue';
 import Icon from '@/components/Icon.vue';
-import { useLongPressTimer, useUIFeedbackTimer, useTimer } from '@/composables/useTimer';
+import ListView from '@/components/ListView.vue';
+import CategoryView from '@/components/CategoryView.vue';
+import CalendarView from '@/components/CalendarView.vue';
+import { useTimer } from '@/composables/useTimer';
 import { databaseApi, todoApi } from '@/api/services';
 
-const router = useRouter();
+// 显示模式状态
+const displayMode = ref<'list' | 'category' | 'calendar'>('list');
 
 // 专注模式状态
 const focusMode = ref({
@@ -156,317 +108,52 @@ const loadTodos = async () => {
   }
 };
 
+// 更新列表数据
+const updateList = (newList: Todo[]) => {
+  list.value = newList;
+};
 
+// 处理模式切换
+const handleModeChange = (mode: string) => {
+  console.log('changeMode', mode)
+  switch (mode) {
+    case 'list':
+      displayMode.value = 'list';
+      break;
+    case 'category':
+      displayMode.value = 'category';
+      break;
+    case 'calendar':
+      displayMode.value = 'calendar';
+      break;
+    default:
+      displayMode.value = 'list';
+  }
+};
+
+// 处理分类视图的项目点击
+const handleCategoryItemClick = (todo: Todo) => {
+  // 可以在这里添加分类视图特有的点击逻辑
+  console.log('Category item clicked:', todo);
+};
+
+// 处理日历视图的项目点击
+const handleCalendarItemClick = (todo: Todo) => {
+  // 可以在这里添加日历视图特有的点击逻辑
+  console.log('Calendar item clicked:', todo);
+};
 
 onMounted(() => {
   loadTodos();
-  document.addEventListener('click', handleGlobalClick);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleGlobalClick);
+  clearTimer('focusTimer');
 });
 
-const isDragging = ref(false);
-const dragIndex = ref(-1);
-const dragPreview = ref<any>(null);
-const dragAction = ref('');
-const pointer = ref({ x: 0, y: 0 });
-const pressedIndex = ref<number | null>(null);
-const justFinishedDragging = ref(false); // 新增：标记是否刚完成拖拽
-
-// 右键菜单状态
-const contextMenu = ref({
-  visible: false,
-  x: 0,
-  y: 0,
-  todo: null as Todo | null,
-  index: -1
-});
-
-// 使用长按定时器管理
-const { startLongPress, cancelLongPress } = useLongPressTimer();
-// 使用UI反馈定时器管理
-const { createFeedbackTimer } = useUIFeedbackTimer();
 // 使用专注模式定时器管理
 const { createTimer, clearTimer } = useTimer();
 
-const previewStyle = computed(() => ({
-  top: pointer.value.y + 'px',
-  left: pointer.value.x + 'px'
-}));
-
-// 右键菜单样式
-const contextMenuStyle = computed(() => ({
-  top: contextMenu.value.y + 'px',
-  left: contextMenu.value.x + 'px'
-}));
-
-// 显示右键菜单
-const showContextMenu = (event: MouseEvent, todo: Todo, index: number) => {
-  event.preventDefault();
-  event.stopPropagation();
-
-  const menuWidth = 120;
-  const menuHeight = 120;
-  const windowWidth = window.innerWidth;
-  const windowHeight = window.innerHeight;
-
-  let x = event.clientX;
-  let y = event.clientY;
-
-  // 防止菜单超出屏幕边界
-  if (x + menuWidth > windowWidth) {
-    x = windowWidth - menuWidth - 10;
-  }
-  if (y + menuHeight > windowHeight) {
-    y = windowHeight - menuHeight - 10;
-  }
-
-  contextMenu.value = {
-    visible: true,
-    x,
-    y,
-    todo,
-    index
-  };
-};
-
-// 隐藏右键菜单
-const hideContextMenu = () => {
-  contextMenu.value.visible = false;
-};
-
-// 全局点击事件处理
-const handleGlobalClick = (event: MouseEvent) => {
-  // 如果点击的不是右键菜单区域，则隐藏菜单
-  const target = event.target as HTMLElement;
-  if (!target.closest('.context-menu')) {
-    hideContextMenu();
-  }
-};
-
-// 完成todo
-const completeTodo = async () => {
-  if (!contextMenu.value.todo) return;
-
-  try {
-    const updatedTodo = { ...contextMenu.value.todo, status: 1 };
-    await todoApi.update(updatedTodo);
-    list.value.splice(contextMenu.value.index, 1);
-  } catch (error) {
-    console.error('Failed to complete todo:', error);
-  }
-  hideContextMenu();
-};
-
-// 编辑todo
-const editTodo = () => {
-  if (!contextMenu.value.todo) return;
-
-  router.push(`/add?id=${contextMenu.value.todo.id}`);
-  hideContextMenu();
-};
-
-// 删除todo
-const deleteTodo = async () => {
-  if (!contextMenu.value.todo) return;
-
-  try {
-    await todoApi.delete(contextMenu.value.todo.id);
-    list.value.splice(contextMenu.value.index, 1);
-  } catch (error) {
-    console.error('Failed to delete todo:', error);
-  }
-  hideContextMenu();
-};
-
-const prepareLongPress = (e: MouseEvent, index: number) => {
-  pressedIndex.value = index;
-  startLongPress(() => {
-    startDrag(e, index);
-  }, 300);
-};
-
-const cancelLongPressAction = () => {
-  cancelLongPress();
-};
-
-const handleClick = (item: any) => {
-  // 如果刚完成拖拽或正在拖拽，不触发点击事件
-  if (!isDragging.value && !justFinishedDragging.value) {
-    item.expanded = !item.expanded;
-  }
-  // 重置拖拽完成标志
-  justFinishedDragging.value = false;
-};
-
-const startDrag = (e: MouseEvent, index: number) => {
-  cancelLongPressAction();
-  e.preventDefault();
-  isDragging.value = true;
-  dragIndex.value = index;
-  dragPreview.value = { ...list.value[index] };
-
-  pointer.value = { x: e.clientX + 10, y: e.clientY + 10 };
-
-  // 防止页面滚动
-  document.body.style.overflow = 'hidden';
-
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup', onMouseUp);
-};
-
-const onMouseMove = (e: MouseEvent) => {
-  // 限制拖拽预览位置，防止超出视窗边界
-  const maxX = window.innerWidth;
-  const maxY = window.innerHeight;
-
-  pointer.value = {
-    x: Math.min(Math.max(e.clientX + 10, 10), maxX),
-    y: Math.min(Math.max(e.clientY + 10, 10), maxY)
-  };
-
-  const width = window.innerWidth;
-  // 调整触发阈值，让完成区域更容易触发
-  const deleteThreshold = width * 0.3; // 删除区域阈值
-  const completeThreshold = width * 0.7; // 完成区域阈值，从70%开始就触发
-
-  if (e.clientX < deleteThreshold) {
-    dragAction.value = 'delete';
-  } else if (e.clientX > completeThreshold) {
-    dragAction.value = 'complete';
-  } else {
-    dragAction.value = '';
-  }
-};
-
-// 获取截止时间显示文字
-const getDueDateText = (item: Todo) => {
-  // 优先使用endTime，如果没有则使用startTime
-  const dueTime = item.endTime || item.startTime;
-  if (!dueTime) return '未设置截止时间';
-
-  const dueDate = new GDate(dueTime);
-  const today = new GDate();
-
-  // 使用日期的开始时间进行比较，确保计算准确
-  const dueDateStart = dueDate.getStartOfDay();
-  const todayStart = today.getStartOfDay();
-
-  const diffDays = Math.round((dueDateStart.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
-    const overdueDays = Math.abs(diffDays);
-    return `已逾期 ${overdueDays} 天`;
-  } else if (diffDays === 0) {
-    return '今天是最后一天啦！';
-  } else if (diffDays === 1) {
-    return '明天截止';
-  } else if (diffDays <= 3) {
-    return `还有 ${diffDays} 天`;
-  } else if (diffDays <= 7) {
-    return `还有 ${diffDays} 天`;
-  } else {
-    return `还有 ${diffDays} 天`;
-  }
-};
-
-// 获取优先级文本
-const getLevelText = (level: number) => {
-  switch (level) {
-    case 0: return '重要不紧急';
-    case 1: return '重要且紧急';
-    case 2: return '不重要不紧急';
-    case 3: return '不重要但紧急';
-    default: return '未分类';
-  }
-};
-
-// 获取优先级样式类名
-const getLevelClass = (level: number) => {
-  switch (level) {
-    case 0: return 'level-important-not-urgent';
-    case 1: return 'level-important-urgent';
-    case 2: return 'level-not-important-not-urgent';
-    case 3: return 'level-not-important-urgent';
-    default: return 'level-uncategorized';
-  }
-};
-
-// 获取截止时间样式类名
-const getDueDateClass = (item: Todo) => {
-  // 优先使用endTime，如果没有则使用startTime
-  const dueTime = item.endTime || item.startTime;
-  if (!dueTime) return 'due-date-none';
-
-  const dueDate = new GDate(dueTime);
-  const today = new GDate();
-
-  // 使用日期的开始时间进行比较，确保计算准确
-  const dueDateStart = dueDate.getStartOfDay();
-  const todayStart = today.getStartOfDay();
-
-  const diffDays = Math.round((dueDateStart.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
-    return 'due-date-overdue';
-  } else if (diffDays === 0) {
-    return 'due-date-today';
-  } else if (diffDays === 1) {
-    return 'due-date-tomorrow';
-  } else if (diffDays <= 3) {
-    return 'due-date-urgent';
-  } else if (diffDays <= 7) {
-    return 'due-date-soon';
-  } else {
-    return 'due-date-normal';
-  }
-};
-
-const onMouseUp = async () => {
-  let wasDragging = isDragging.value; // 记录是否在拖拽状态
-
-  if (dragIndex.value >= 0) {
-    const todo = list.value[dragIndex.value];
-    if (dragAction.value === 'delete') {
-      try {
-        await todoApi.delete(todo.id);
-        list.value.splice(dragIndex.value, 1);
-      } catch (error) {
-        console.error('Failed to delete todo:', error);
-      }
-    } else if (dragAction.value === 'complete') {
-      try {
-        const updatedTodo = { ...todo, status: 1 };
-        await todoApi.update(updatedTodo);
-        list.value.splice(dragIndex.value, 1); // 从列表中移除
-      } catch (error) {
-        console.error('Failed to complete todo:', error);
-      }
-    }
-  }
-
-  isDragging.value = false;
-  dragAction.value = '';
-  dragIndex.value = -1;
-  dragPreview.value = null;
-
-  // 如果刚才在拖拽，设置标志防止触发点击事件
-  if (wasDragging) {
-    justFinishedDragging.value = true;
-    // 短暂延迟后重置标志，确保点击事件被阻止
-    createFeedbackTimer(() => {
-      justFinishedDragging.value = false;
-    }, 50, 'dragFinished');
-  }
-
-  // 恢复页面滚动
-  document.body.style.overflow = '';
-
-  window.removeEventListener('mousemove', onMouseMove);
-  window.removeEventListener('mouseup', onMouseUp);
-};
 
 // 专注模式相关函数
 const enterFocusMode = (todo: Todo) => {
@@ -551,13 +238,6 @@ const formatFocusTime = (milliseconds: number) => {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   }
 };
-
-// 注意：getLevelClass 函数已在上方定义，此处删除重复定义
-
-// 清理定时器
-onUnmounted(() => {
-  clearTimer('focusTimer');
-});
 </script>
 
 <style scoped>
@@ -931,6 +611,7 @@ onUnmounted(() => {
   bottom: 30px;
   right: 30px;
   z-index: 100;
+  opacity: 0.65;
 }
 
 .add-btn {
@@ -967,6 +648,9 @@ onUnmounted(() => {
   position: relative;
   background: var(--bg-primary);
   overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-top: 18px;
 }
 
 .list-container {

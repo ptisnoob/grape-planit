@@ -13,6 +13,10 @@
   --accent-color: #007bff;
   --shadow: rgba(0, 0, 0, 0.1);
   
+  /* 浅色模式下的特殊颜色调整 */
+  --text-muted: rgba(0, 0, 0, 0.6);
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  
   /* 动画变量 */
   --transition-fast: 0.2s ease;
   --transition-normal: 0.3s ease;
@@ -28,6 +32,10 @@
   --border-color: #404040;
   --accent-color: #4dabf7;
   --shadow: rgba(0, 0, 0, 0.3);
+  
+  /* 深色模式下的特殊颜色调整 */
+  --text-muted: rgba(255, 255, 255, 0.6);
+  --bg-hover: rgba(255, 255, 255, 0.1);
 }
 
 

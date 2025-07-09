@@ -26,3 +26,5 @@ src-tauri/target
 
 
 .env
+.trae
+.vscode

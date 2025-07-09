@@ -18,7 +18,7 @@
         <span class="placeholder-text">等待下班倒计时...</span>
       </div>
     </div>
-    <HeaderRight />
+    <HeaderRight @changeMode="handleChangeMode" />
   </div>
 </template>
 
@@ -40,6 +40,7 @@ interface CountdownItem {
 
 const router = useRouter()
 const route = useRoute()
+const emit = defineEmits(['changeMode'])
 
 const countdowns = ref<CountdownItem[]>([])
 const totalItems = computed(() => {
@@ -51,7 +52,18 @@ const totalItems = computed(() => {
 })
 const countdownConfig = ref<CountdownConfig | null>(null)
 const shouldShowCarousel = computed(() => {
-  return countdownConfig.value?.enableWorkEndCountdown === true
+  // 如果没有开启下班倒计时，不显示轮播
+  if (!countdownConfig.value?.enableWorkEndCountdown) {
+    return false
+  }
+  
+  // 如果倒计时状态为重置状态，不显示轮播
+  const hasResetCountdown = countdowns.value.some(item => item.data.status === 'reset')
+  if (hasResetCountdown) {
+    return false
+  }
+  
+  return true
 })
 
 // 记录用户最后手动操作的时间，用于避免自动跳转干扰用户操作
@@ -69,8 +81,6 @@ const { currentIndex, startCarousel, stopCarousel, restartCarousel } = useCarous
 
 // 为了保持兼容性，创建一个别名
 const currentTimeText = currentTimeTextForTop
-
-
 
 // 设置配置更新监听
 const setupConfigListener = async () => {
@@ -140,6 +150,10 @@ const initCountdowns = async () => {
   } catch (error) {
     console.error('Failed to start countdown timer:', error)
   }
+}
+
+const handleChangeMode = (mode: string)=>{
+  emit('changeMode', mode)
 }
 
 const navToTime = () => {
