@@ -27,7 +27,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { useRouter, useRoute } from 'vue-router'
 import { CountdownData, CountdownConfig } from '@/model/countdown'
-import { useModeStore } from '@/store/mode'
+
 import { useTime, useCountdown } from '@/composables/useTime'
 import { useCarousel } from '@/composables/useCarousel'
 import { databaseApi } from '@/api/services'
@@ -42,7 +42,6 @@ interface CountdownItem {
 
 const router = useRouter()
 const route = useRoute()
-const modeStore = useModeStore()
 
 const countdowns = ref<CountdownItem[]>([])
 const totalItems = computed(() => {
@@ -59,7 +58,6 @@ const shouldShowCarousel = computed(() => {
 
 // 记录用户最后手动操作的时间，用于避免自动跳转干扰用户操作
 const lastUserActionTime = ref(0)
-const USER_ACTION_COOLDOWN = 30000 // 30秒内不进行自动跳转
 
 let unlistenCountdown: (() => void) | null = null
 let unlistenConfigUpdate: (() => void) | null = null
@@ -99,30 +97,12 @@ const setupCountdownListener = async () => {
 
       if (existingIndex >= 0) {
         // 更新现有倒计时
-        const oldData = countdowns.value[existingIndex].data
         countdowns.value[existingIndex] = {
           id: newData.mode,
           text: formatCountdownText(newData),
           data: newData
         }
 
-        // 检查是否刚进入最终倒计时阶段
-        const wasInFinalCountdown = oldData.status === 'running' && oldData.timestamp <= 60
-        const isNowInFinalCountdown = newData.status === 'running' && newData.timestamp <= 60
-
-        if (!wasInFinalCountdown && isNowInFinalCountdown) {
-          // 检查是否在用户操作冷却期内
-          const timeSinceLastAction = Date.now() - lastUserActionTime.value
-          const shouldAutoSwitch = timeSinceLastAction > USER_ACTION_COOLDOWN
-          
-          if (shouldAutoSwitch) {
-            // 自动切换到对应的倒计时页面
-            if (newData.mode === 'workEnd') {
-              modeStore.switchMode('workEnd')
-              router.push('/')
-            }
-          }
-        }
       } else {
         // 添加新的倒计时
         countdowns.value.push({

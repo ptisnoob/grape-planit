@@ -6,12 +6,16 @@
         <component :is="Component" />
       </transition>
     </router-view>
+    
+    <!-- 全局最后倒计时overlay -->
+    <FinalCountdownOverlay />
   </main>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useTheme } from '@/composables/useTheme.ts';
+import FinalCountdownOverlay from '@/components/FinalCountdownOverlay.vue';
 
 const { initTheme } = useTheme();
 

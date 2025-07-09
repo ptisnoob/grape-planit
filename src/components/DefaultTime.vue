@@ -2,8 +2,7 @@
     <WeatherBackground :show-weather-info="modeStore.currentMode === 'current'" container-class="default-box">
         <div class="default-box animate__animated animate__fadeIn">
             <!-- 时间显示区域 -->
-            <div class="time-container animate__animated animate__fadeInUp animate__delay-1s"
-                v-if="!shouldShowFinalCountdown">
+            <div class="time-container animate__animated animate__fadeInUp animate__delay-1s">
                 <h1 class="time-display" @click="toggleTimeDisplay">{{ displayTime }}</h1>
             </div>
 
@@ -18,7 +17,7 @@
 
             <!-- 倒计时信息 -->
             <div class="countdown-info animate__animated animate__fadeInUp animate__delay-1s"
-                v-else-if="!shouldShowFinalCountdown">
+                v-else>
                 <p class="countdown-target">{{ countdownTarget }}</p>
                 <div class="countdown-actions" v-if="modeStore.currentMode === 'workEnd'">
                     <button class="edit-btn" @click="openWorkEndSettings" title="设置下班时间">
@@ -28,15 +27,7 @@
 
             </div>
 
-            <!-- 最后倒计时效果 -->
-            <div class="final-countdown-container" v-if="shouldShowFinalCountdown" @click="handleGotIt">
-                <div :key="finalCountdownNumber" class="final-countdown-number animate__animated animate__pulse">
-                    {{ finalCountdownNumber }}
-                </div>
-            </div>
-
             <h2 class="motivation-text animate__animated animate__fadeInUp animate__delay-2s"
-                v-if="!shouldShowFinalCountdown"
                 :class="{ 'generating': isGeneratingMotivation }">
                 <span v-if="isGeneratingMotivation" class="loading-dots">生成中</span>
                 <span v-else>{{ motivationText }}</span>
@@ -58,9 +49,9 @@ import WorkEndSettings from './WorkEndSettings.vue'
 import WeatherBackground from './WeatherBackground.vue'
 import { CountdownConfig, CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
+
 import { useDatabase } from '@/composables/useDatabase'
 import { useTime } from '@/composables/useTime'
-import { useEndStateTimer } from '@/composables/useTimer'
 import { databaseApi } from '@/api/services'
 import { holidayApi } from '@/api/holiday'
 import type { Holiday } from '@/model/holiday'
@@ -97,14 +88,6 @@ const showWorkEndSettings = ref(false)
 // 倒计时设置
 const workEndTime = ref('')
 const beforeTime = ref(60)
-
-// 最后倒计时状态
-const isInFinalCountdown = ref(false)
-// 结束状态相关
-const isInEndState = ref(false)
-
-// 使用结束状态定时器管理
-const { startEndStateTimer, clearEndStateTimer } = useEndStateTimer()
 
 // 事件监听器
 let unlistenCountdown: (() => void) | null = null
@@ -150,32 +133,7 @@ const countdownTarget = computed(() => {
     return ''
 })
 
-// 判断是否进入最后倒计时阶段
-const shouldShowFinalCountdown = computed(() => {
-    if (modeStore.currentMode !== 'current' && countdownData.value) {
-        // 如果状态是finished，显示最后倒计时效果
-        if (countdownData.value.status === 'finished') {
-            return true
-        }
-        // 如果状态是running且时间小于等于beforeTime，显示最后倒计时
-        if (countdownData.value.status === 'running' && countdownData.value.timestamp > 0 && countdownData.value.timestamp <= beforeTime.value) {
-            return true
-        }
-    }
-    return false
-})
 
-// 最后倒计时显示的数字或文本
-const finalCountdownNumber = computed(() => {
-    if (shouldShowFinalCountdown.value && countdownData.value) {
-        if (countdownData.value.status === 'finished') {
-            // 下班倒计时结束显示"下班"
-            return countdownData.value.mode === 'workEnd' ? '下班' : 0
-        }
-        return Math.max(0, countdownData.value.timestamp)
-    }
-    return 0
-})
 
 
 const toggleTimeDisplay = async () => {
@@ -231,93 +189,17 @@ const handleWorkEndSaved = async () => {
 }
 
 
-
-// 处理"知道了"按钮点击
-const handleGotIt = async () => {
-    console.log('点击了知道了')
-    // 如果既不在结束状态也不在最后倒计时阶段，则不处理
-    if (!isInEndState.value && !shouldShowFinalCountdown.value) {
-        return
-    }
-
-    // 清除结束状态定时器
-    clearEndStateTimer()
-
-    // 退出结束状态
-    isInEndState.value = false
-    isInFinalCountdown.value = false
-
-    // 如果是下班倒计时结束，切换到下一天的倒计时
-    if (countdownData.value?.mode === 'workEnd' && countdownData.value?.status === 'finished') {
-        try {
-            // 调用后端重置下班倒计时到下一天
-            await databaseApi.countdown.resetWorkEndToNextDay()
-            console.log('✅ [前端] 下班倒计时已重置到下一天')
-            
-            // 重置前端状态
-            countdownData.value = {
-                mode: 'workEnd',
-                timestamp: 0,
-                target_info: '请设置下班时间',
-                status: 'reset'
-            }
-        } catch (error) {
-            console.error('❌ [前端] 重置下班倒计时失败:', error)
-        }
-    }
-
-
-}
-
-// 开始结束状态保持定时器
-const startEndStateKeepTimer = () => {
-    if (!config.value) return
-
-    const keepMinutes = config.value.endStateKeepMinutes || 5
-    console.log(`🕐 [前端] 开始结束状态保持定时器，将保持 ${keepMinutes} 分钟`)
-
-    startEndStateTimer(() => {
-        console.log('⏰ [前端] 结束状态保持时间到，自动退出结束状态')
-        handleGotIt()
-    }, keepMinutes)
-}
-
 // 设置倒计时事件监听
 const setupCountdownListener = async () => {
     try {
         console.log('🎧 [DefaultTime] 开始设置倒计时事件监听器')
         unlistenCountdown = await listen('countdown-update', (event) => {
-            // console.log('📨 [DefaultTime] 收到倒计时更新事件:', event.payload)
             const newData = event.payload as CountdownData
-            const wasInFinalCountdown = shouldShowFinalCountdown.value
-            const oldData = countdownData.value
-            
-            // 如果当前处于结束状态，忽略后端的倒计时更新
-            // 这样可以避免重置后立即被后端数据覆盖
-            if (isInEndState.value) {
-                console.log('🚫 [DefaultTime] 当前处于结束状态，忽略倒计时更新')
-                return
-            }
             
             // 只有在下班倒计时模式下才处理下班倒计时数据
             if (modeStore.currentMode === 'workEnd' && newData.mode === 'workEnd') {
                 console.log('✅ [DefaultTime] 更新下班倒计时数据')
                 countdownData.value = newData
-
-                // 检查是否刚进入最后倒计时阶段
-                if (!wasInFinalCountdown && shouldShowFinalCountdown.value) {
-                    isInFinalCountdown.value = true
-                    console.log('🔥 [DefaultTime] 进入最后倒计时阶段！')
-                }
-
-                // 检查是否倒计时结束
-                if (newData.status === 'finished' && oldData?.status !== 'finished') {
-                    console.log('🎉 [DefaultTime] 下班倒计时结束！')
-                    // 进入结束状态
-                    isInEndState.value = true
-                    // 开始结束状态保持定时器
-                    startEndStateKeepTimer()
-                }
             }
         })
     } catch (error) {
@@ -478,7 +360,6 @@ onUnmounted(() => {
     if (unlistenCountdown) {
         unlistenCountdown();
     }
-    // 结束状态定时器会在useEndStateTimer的onUnmounted中自动清理
 });
 </script>
 

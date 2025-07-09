@@ -35,7 +35,6 @@
 <script lang="ts" setup>
 import { ref, watch } from 'vue'
 import Modal from './Modal.vue'
-import { CountdownConfig } from '@/model/countdown'
 import { useDatabase } from '@/composables/useDatabase'
 
 interface Props {
@@ -139,8 +138,8 @@ const handleSave = async () => {
 
     try {
       // 从数据库加载配置
-      const config: CountdownConfig = await loadConfigFromDb()
-
+      const config = await loadConfigFromDb()
+      if (!config) return
       config.workEndTime = timeString
 
       // 更新数据库中的配置
