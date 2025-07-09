@@ -4,7 +4,7 @@
       <!-- Canvas坐标系 -->
       <div class="canvas-container" ref="canvasContainer">
         <canvas ref="quadrantCanvas" @click="handleCanvasClick" @dblclick="handleCanvasDoubleClick"
-          @mousemove="handleCanvasMouseMove" @mouseleave="handleCanvasMouseLeave"></canvas>
+          @mousemove="handleCanvasMouseMove" @mouseleave="handleCanvasMouseLeave" @contextmenu="handleCanvasContextMenu"></canvas>
 
         <!-- 悬浮提示 -->
         <div v-if="hoveredItem" class="item-tooltip"
@@ -56,6 +56,7 @@ interface Props {
 interface Emits {
   (e: 'enterFocusMode', todo: Todo): void;
   (e: 'itemClick', todo: Todo): void;
+  (e: 'contextMenu', event: MouseEvent, todo: Todo, index: number): void;
 }
 
 interface ItemPosition {
@@ -402,6 +403,26 @@ const handleCanvasDoubleClick = (event: MouseEvent) => {
 
   if (clickedPosition) {
     enterFocusMode(clickedPosition.item);
+  }
+};
+
+// 处理Canvas右键菜单
+const handleCanvasContextMenu = (event: MouseEvent) => {
+  event.preventDefault();
+  if (!quadrantCanvas.value) return;
+
+  const rect = quadrantCanvas.value.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  const clickedPosition = itemPositions.value.find(pos => {
+    const distance = Math.sqrt((pos.x - x) ** 2 + (pos.y - y) ** 2);
+    return distance <= pos.radius + 5;
+  });
+
+  if (clickedPosition) {
+    const index = props.list.findIndex(item => item.id === clickedPosition.item.id);
+    emit('contextMenu', event, clickedPosition.item, index);
   }
 };
 

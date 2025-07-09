@@ -51,21 +51,37 @@
       </div>
 
       <!-- 根据显示模式切换不同的视图组件 -->
-      <ListView v-if="displayMode === 'list'" :list="list" @update:list="updateList"
-        @enter-focus-mode="enterFocusMode" />
+      <ListView v-if="displayMode === 'list'" :list="list" @update:list="updateList" @enter-focus-mode="enterFocusMode" @context-menu="showContextMenu" />
 
       <CategoryView v-else-if="displayMode === 'category'" :list="list" @enter-focus-mode="enterFocusMode"
-        @item-click="handleCategoryItemClick" />
+        @item-click="handleCategoryItemClick" @context-menu="handleCategoryContextMenu" />
 
       <CalendarView v-else-if="displayMode === 'calendar'" :list="list" @enter-focus-mode="enterFocusMode"
         @item-click="handleCalendarItemClick" />
+    </div>
+
+    <!-- 右键菜单 -->
+    <div v-if="contextMenu.visible" class="context-menu" :style="contextMenuStyle" @click.stop>
+      <div class="context-menu-item" @click="completeTodo">
+        <span class="menu-icon">✅</span>
+        <span>完成</span>
+      </div>
+      <div class="context-menu-item" @click="editTodo">
+        <span class="menu-icon">✏️</span>
+        <span>修改</span>
+      </div>
+      <div class="context-menu-item danger" @click="deleteTodo">
+        <span class="menu-icon">🗑️</span>
+        <span>删除</span>
+      </div>
     </div>
   </WeatherBackground>
 </template>
 
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { Todo } from '@/model/todo';
 import TopTimeDisplay from '@/components/TopTimeDisplay.vue';
 import WeatherBackground from '@/components/WeatherBackground.vue';
@@ -76,8 +92,19 @@ import CalendarView from '@/components/CalendarView.vue';
 import { useTimer } from '@/composables/useTimer';
 import { databaseApi, todoApi } from '@/api/services';
 
+const router = useRouter();
+
 // 显示模式状态
 const displayMode = ref<'list' | 'category' | 'calendar'>('list');
+
+// 右键菜单状态
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  todo: null as Todo | null,
+  index: -1
+});
 
 // 专注模式状态
 const focusMode = ref({
@@ -93,6 +120,12 @@ const isHoveringFocusMode = ref(false);
 
 const list = ref<Todo[]>([]);
 const filterDays = ref(5); // 默认显示最近5天
+
+// 计算属性
+const contextMenuStyle = computed(() => ({
+  top: contextMenu.value.y + 'px',
+  left: contextMenu.value.x + 'px'
+}));
 
 const loadTodos = async () => {
   try {
@@ -143,12 +176,95 @@ const handleCalendarItemClick = (todo: Todo) => {
   console.log('Calendar item clicked:', todo);
 };
 
+// 右键菜单相关函数
+const showContextMenu = (event: MouseEvent, todo: Todo, index: number) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const menuWidth = 120;
+  const menuHeight = 120;
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
+
+  let x = event.clientX;
+  let y = event.clientY;
+
+  if (x + menuWidth > windowWidth) {
+    x = windowWidth - menuWidth - 10;
+  }
+  if (y + menuHeight > windowHeight) {
+    y = windowHeight - menuHeight - 10;
+  }
+
+  contextMenu.value = {
+    visible: true,
+    x,
+    y,
+    todo,
+    index
+  };
+};
+
+const hideContextMenu = () => {
+  contextMenu.value.visible = false;
+};
+
+const handleGlobalClick = (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+  if (!target.closest('.context-menu')) {
+    hideContextMenu();
+  }
+};
+
+const completeTodo = async () => {
+  if (!contextMenu.value.todo) return;
+
+  try {
+    const updatedTodo = { ...contextMenu.value.todo, status: 1 };
+    await todoApi.update(updatedTodo);
+    const newList = [...list.value];
+    newList.splice(contextMenu.value.index, 1);
+    updateList(newList);
+  } catch (error) {
+    console.error('Failed to complete todo:', error);
+  }
+  hideContextMenu();
+};
+
+const editTodo = () => {
+  if (!contextMenu.value.todo) return;
+  router.push(`/add?id=${contextMenu.value.todo.id}`);
+  hideContextMenu();
+};
+
+const deleteTodo = async () => {
+  if (!contextMenu.value.todo) return;
+
+  try {
+    await todoApi.delete(contextMenu.value.todo.id);
+    const newList = [...list.value];
+    newList.splice(contextMenu.value.index, 1);
+    updateList(newList);
+  } catch (error) {
+    console.error('Failed to delete todo:', error);
+  }
+  hideContextMenu();
+};
+
+// 处理CategoryView的右键菜单
+const handleCategoryContextMenu = (event: MouseEvent, todo: Todo) => {
+  const index = list.value.findIndex(item => item.id === todo.id);
+  showContextMenu(event, todo, index);
+};
+
 onMounted(() => {
   loadTodos();
+  document.addEventListener('click', handleGlobalClick);
 });
 
 onUnmounted(() => {
   clearTimer('focusTimer');
+  document.removeEventListener('click', handleGlobalClick);
 });
 
 // 使用专注模式定时器管理

@@ -5,7 +5,7 @@
         :class="{ 'is-expanded': item.expanded, 'is-dragging': isDragging && dragIndex === index }"
         @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPressAction"
         @mouseleave="cancelLongPressAction" @click="handleClick(item)" @dblclick="enterFocusMode(item)"
-        @contextmenu.prevent="showContextMenu($event, item, index)">
+        @contextmenu="handleContextMenu($event, item, index)">
         <div class="item-header">
           <div class="title-with-level">
             <div class="level-color-block" :class="getLevelClass(item.level)" :title="getLevelText(item.level)">
@@ -23,22 +23,6 @@
       </div>
     </div>
     <Empty v-else>暂无待办事项</Empty>
-  </div>
-
-  <!-- 右键菜单 -->
-  <div v-if="contextMenu.visible" class="context-menu" :style="contextMenuStyle" @click.stop>
-    <div class="context-menu-item" @click="completeTodo">
-      <span class="menu-icon">✅</span>
-      <span>完成</span>
-    </div>
-    <div class="context-menu-item" @click="editTodo">
-      <span class="menu-icon">✏️</span>
-      <span>修改</span>
-    </div>
-    <div class="context-menu-item danger" @click="deleteTodo">
-      <span class="menu-icon">🗑️</span>
-      <span>删除</span>
-    </div>
   </div>
 
   <!-- 删除区域 -->
@@ -64,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Todo } from '@/model/todo';
 import { GDate } from "@/common/date"
@@ -79,6 +63,7 @@ interface Props {
 interface Emits {
   (e: 'update:list', value: Todo[]): void;
   (e: 'enterFocusMode', todo: Todo): void;
+  (e: 'contextMenu', event: MouseEvent, todo: Todo, index: number): void;
 }
 
 const props = defineProps<Props>();
@@ -94,14 +79,7 @@ const pointer = ref({ x: 0, y: 0 });
 const pressedIndex = ref<number | null>(null);
 const justFinishedDragging = ref(false);
 
-// 右键菜单状态
-const contextMenu = ref({
-  visible: false,
-  x: 0,
-  y: 0,
-  todo: null as Todo | null,
-  index: -1
-});
+
 
 // 使用定时器管理
 const { startLongPress, cancelLongPress } = useLongPressTimer();
@@ -113,10 +91,7 @@ const previewStyle = computed(() => ({
   left: pointer.value.x + 'px'
 }));
 
-const contextMenuStyle = computed(() => ({
-  top: contextMenu.value.y + 'px',
-  left: contextMenu.value.x + 'px'
-}));
+
 
 // 事件处理函数
 const prepareLongPress = (e: MouseEvent, index: number) => {
@@ -139,6 +114,11 @@ const handleClick = (item: Todo) => {
 
 const enterFocusMode = (item: Todo) => {
   emit('enterFocusMode', item);
+};
+
+const handleContextMenu = (event: MouseEvent, todo: Todo, index: number) => {
+  event.preventDefault();
+  emit('contextMenu', event, todo, index);
 };
 
 // 拖拽相关函数
@@ -222,80 +202,7 @@ const onMouseUp = async () => {
   window.removeEventListener('mouseup', onMouseUp);
 };
 
-// 右键菜单相关函数
-const showContextMenu = (event: MouseEvent, todo: Todo, index: number) => {
-  event.preventDefault();
-  event.stopPropagation();
 
-  const menuWidth = 120;
-  const menuHeight = 120;
-  const windowWidth = window.innerWidth;
-  const windowHeight = window.innerHeight;
-
-  let x = event.clientX;
-  let y = event.clientY;
-
-  if (x + menuWidth > windowWidth) {
-    x = windowWidth - menuWidth - 10;
-  }
-  if (y + menuHeight > windowHeight) {
-    y = windowHeight - menuHeight - 10;
-  }
-
-  contextMenu.value = {
-    visible: true,
-    x,
-    y,
-    todo,
-    index
-  };
-};
-
-const hideContextMenu = () => {
-  contextMenu.value.visible = false;
-};
-
-const handleGlobalClick = (event: MouseEvent) => {
-  const target = event.target as HTMLElement;
-  if (!target.closest('.context-menu')) {
-    hideContextMenu();
-  }
-};
-
-const completeTodo = async () => {
-  if (!contextMenu.value.todo) return;
-
-  try {
-    const updatedTodo = { ...contextMenu.value.todo, status: 1 };
-    await todoApi.update(updatedTodo);
-    const newList = [...props.list];
-    newList.splice(contextMenu.value.index, 1);
-    emit('update:list', newList);
-  } catch (error) {
-    console.error('Failed to complete todo:', error);
-  }
-  hideContextMenu();
-};
-
-const editTodo = () => {
-  if (!contextMenu.value.todo) return;
-  router.push(`/add?id=${contextMenu.value.todo.id}`);
-  hideContextMenu();
-};
-
-const deleteTodo = async () => {
-  if (!contextMenu.value.todo) return;
-
-  try {
-    await todoApi.delete(contextMenu.value.todo.id);
-    const newList = [...props.list];
-    newList.splice(contextMenu.value.index, 1);
-    emit('update:list', newList);
-  } catch (error) {
-    console.error('Failed to delete todo:', error);
-  }
-  hideContextMenu();
-};
 
 // 工具函数
 const getDueDateText = (item: Todo) => {
@@ -369,14 +276,7 @@ const getDueDateClass = (item: Todo) => {
   }
 };
 
-// 生命周期
-onMounted(() => {
-  document.addEventListener('click', handleGlobalClick);
-});
 
-onUnmounted(() => {
-  document.removeEventListener('click', handleGlobalClick);
-});
 </script>
 
 <style scoped>
@@ -539,41 +439,7 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-/* 右键菜单样式 */
-.context-menu {
-  position: fixed;
-  background: var(--bg-primary);
-  border-radius: 8px;
-  padding: 4px 0;
-  min-width: 120px;
-  z-index: 1000;
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 4px 16px var(--shadow);
-}
 
-.context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background-color var(--transition-fast);
-}
-
-.context-menu-item:hover {
-  background: var(--bg-secondary);
-}
-
-.context-menu-item.danger:hover {
-  background: rgba(255, 71, 87, 0.2);
-  color: #ff4757;
-}
-
-.menu-icon {
-  font-size: 14px;
-}
 
 /* 拖拽区域样式 */
 .drop-zone {

@@ -308,7 +308,7 @@ export class AIService {
     }
 
     async extTask(input: string): Promise<TodoVo | null> {
-        let prompt = `现在是${new GDate().toChineseString()}，${input}`
+        let prompt = `现在是${new GDate().toChineseString()}; 要提取的文本是：${input}`
         let response = await this.chat(prompt, false, ExtractionTaskPrompt)
         let res = null
         if (response) {
