@@ -1,6 +1,6 @@
 <template>
     <div class="flex-r-c-c header-right">
-        <div v-if="currentNavIndex === 1" class="link-text" @click="toggleMode">{{ currentMode.label }}</div>
+        <div v-if="currentNavIndex === 1" class="link-text activate-text" @click="toggleMode">{{ currentMode.label }}</div>
         <div class="link-text" @click="toggleNav">{{ currentNav.icon }}</div>
         <div class="gap-line"></div>
         <Icon :name="getThemeIcon" :size="18" @click="toggleTheme" />
@@ -86,6 +86,10 @@ onMounted(() => {
         font-size: 14px;
         cursor: pointer;
         user-select: none;
+    }
+
+    .activate-text{
+        color: var(--accent-color);
     }
 }
 </style>
