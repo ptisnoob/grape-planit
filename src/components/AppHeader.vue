@@ -1,58 +1,23 @@
 <template>
     <header class="app-header" :class="{ 'visible': isVisible }">
         <div class="header-left">
-            <button v-if="route.path === '/add'" class="nav-link back-btn" @click="goBack">
-                返回
-            </button>
-            <Icon v-else :name="currentNav.icon" :size="18" @click="toggleNav" />
             <ModeToggle v-if="route.path === '/'" @mode-changed="handleModeChange" />
-            <button v-if="route.path === '/list'" class="nav-link settings-btn" @click="toAddTodo">
-                <Icon name="plus" :size="18" />
-            </button>
         </div>
         <HeaderRight />
     </header>
 </template>
 
 <script lang="ts" setup>
-import { ref, computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import ModeToggle from './ModeToggle.vue';
 import HeaderRight from './HeaderRight.vue'
 
 defineProps<{ isVisible: boolean }>();
 
 const route = useRoute();
-const router = useRouter();
 const emit = defineEmits(['mode-changed']);
 
-const navs = [
-    { path: '/', icon: 'clock-circle' },
-    { path: '/list', icon: 'list' },
-    // { path: '/calendar', icon: 'calendar' },
-];
 
-const getCurrentNavIndex = () => {
-    const currentPath = route.path;
-    const index = navs.findIndex(nav => nav.path === currentPath);
-    return index >= 0 ? index : 0;
-};
-
-const currentNavIndex = ref(getCurrentNavIndex());
-
-const currentNav = computed(() => navs[currentNavIndex.value]);
-const toAddTodo = () => {
-    router.push('/add');
-}
-
-const goBack = () => {
-    router.go(-1);
-}
-
-const toggleNav = () => {
-    currentNavIndex.value = (currentNavIndex.value + 1) % navs.length;
-    router.push(navs[currentNavIndex.value].path);
-};
 
 const handleModeChange = (mode: string) => {
     emit('mode-changed', mode);
@@ -65,7 +30,7 @@ const handleModeChange = (mode: string) => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px;
+    padding: 0 10px;
     width: 100%;
     position: fixed;
     top: -60px;
