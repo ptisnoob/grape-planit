@@ -49,7 +49,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
 import { Todo } from '@/model/todo';
 import { GDate } from "@/common/date"
 import Empty from '@/components/Empty.vue';
@@ -68,7 +67,6 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
-const router = useRouter();
 
 // 拖拽相关状态
 const isDragging = ref(false);

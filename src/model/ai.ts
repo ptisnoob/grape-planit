@@ -2,7 +2,6 @@
  * AI 配置接口
  */
 export interface AIConfig {
-  enabled: boolean;
   api_key: string;
   base_url: string;
   model: string;

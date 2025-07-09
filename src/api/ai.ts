@@ -15,7 +15,7 @@ export class AIApi {
    * 从数据库加载 AI 配置
    */
   static async loadAIConfig(): Promise<AIConfig | null> {
-    const response = await api.call<AIConfig>('load_ai_config_from_db');
+    const response = await api.call<AIConfig>('load_ai_settings_from_db');
     return response.success ? response.data || null : null;
   }
 
@@ -23,7 +23,7 @@ export class AIApi {
    * 保存 AI 配置到数据库
    */
   static async saveAIConfig(config: AIConfig): Promise<boolean> {
-    const response = await api.call('save_ai_config_to_db', { config });
+    const response = await api.call('save_ai_settings_to_db', config);
     return response.success;
   }
 
@@ -47,7 +47,7 @@ export class AIApi {
    */
   static async isAIConfigured(): Promise<boolean> {
     const config = await this.loadAIConfig();
-    return !!(config?.enabled && config?.api_key && config?.base_url);
+    return !!(config?.api_key && config?.base_url && config?.model);
   }
 
   /**
@@ -69,10 +69,10 @@ export class AIApi {
     const hasApiKey = !!(config.api_key && config.api_key.trim());
     const hasBaseUrl = !!(config.base_url && config.base_url.trim());
     const hasModel = !!(config.model && config.model.trim());
-    const isFullyConfigured = config.enabled && hasApiKey && hasBaseUrl && hasModel;
+    const isFullyConfigured = hasApiKey && hasBaseUrl && hasModel;
 
     return {
-      enabled: config.enabled,
+      enabled: isFullyConfigured,
       hasApiKey,
       hasBaseUrl,
       hasModel,
@@ -81,28 +81,14 @@ export class AIApi {
   }
 
   /**
-   * 启用 AI 功能
+   * 清空 AI 配置（相当于禁用）
    */
-  static async enableAI(): Promise<boolean> {
-    return this.updateAIConfig({ enabled: true });
-  }
-
-  /**
-   * 禁用 AI 功能
-   */
-  static async disableAI(): Promise<boolean> {
-    return this.updateAIConfig({ enabled: false });
-  }
-
-  /**
-   * 切换 AI 功能开关
-   */
-  static async toggleAI(): Promise<boolean> {
-    const config = await this.loadAIConfig();
-    if (!config) {
-      return false;
-    }
-    return this.updateAIConfig({ enabled: !config.enabled });
+  static async clearAIConfig(): Promise<boolean> {
+    return this.saveAIConfig({
+      api_key: '',
+      base_url: 'https://api.openai.com/v1',
+      model: 'gpt-3.5-turbo'
+    });
   }
 
   /**
@@ -181,9 +167,7 @@ export const aiApi = {
   update: AIApi.updateAIConfig,
   isConfigured: AIApi.isAIConfigured,
   getStatus: AIApi.getAIConfigStatus,
-  enable: AIApi.enableAI,
-  disable: AIApi.disableAI,
-  toggle: AIApi.toggleAI,
+  clear: AIApi.clearAIConfig,
   updateApiKey: AIApi.updateApiKey,
   updateBaseUrl: AIApi.updateBaseUrl,
   updateModel: AIApi.updateModel,

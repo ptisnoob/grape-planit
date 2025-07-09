@@ -1523,7 +1523,7 @@ dependencies = [
 
 [[package]]
 name = "grape-planit"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
  "reqwest 0.11.27",

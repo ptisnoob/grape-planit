@@ -241,7 +241,6 @@ export class AIService {
     async saveConfigToDB(config: AIServiceConfig): Promise<void> {
         try {
             await aiApi.save({
-                enabled: true, // 默认启用
                 api_key: config.apiKey,
                 base_url: config.baseUrl,
                 model: config.model

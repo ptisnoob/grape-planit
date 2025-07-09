@@ -13,7 +13,7 @@
 
                 <!-- 版本信息 -->
                 <div class="version-info">
-                    v1.0.0
+                    {{ appVersion }}
                 </div>
             </div>
         </div>
@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
 import { useTheme } from '@/composables/useTheme';
+import { getVersion } from '@tauri-apps/api/app';
 import GeneralSettings from './components/GeneralSettings.vue';
 import TimeSettings from './components/TimeSettings.vue';
 import AISettings from './components/AISettings.vue';
@@ -53,6 +54,9 @@ import { SelOption } from "@/model/public"
 
 
 const { initTheme } = useTheme();
+
+// 应用版本号
+const appVersion = ref('v1.0.0');
 
 // 菜单项配置
 const menuItems = ref<SelOption[]>([
@@ -79,8 +83,17 @@ const currentMenuLabel = computed(() => {
     return item ? item.label : '设置';
 });
 
-onMounted(() => {
+onMounted(async () => {
     initTheme();
+    
+    // 获取应用版本号
+    try {
+        const version = await getVersion();
+        appVersion.value = `v${version}`;
+    } catch (error) {
+        console.warn('Failed to get app version:', error);
+        // 保持默认版本号
+    }
 });
 </script>
 
