@@ -77,7 +77,6 @@ const {
     stopTimer,
     updateTimeForDefaultDisplay,
     formatCountdownToHMS,
-    calculateNextHoliday: getNextHoliday,
 } = useTime()
 
 const nextHoliday = ref({

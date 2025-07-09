@@ -36,7 +36,7 @@
                     <h2 class="ai-title">{{ isEditMode ? '编辑待办事项' : 'AI智能填写' }}</h2>
                 </div>
                 <form @submit.prevent="handleAISubmit" class="ai-form">
-                    <textarea v-model="aiInput"
+                    <textarea ref="aiTextareaRef" v-model="aiInput"
                         placeholder="例如：明天下午3点开会讨论项目进度，会议室在A座201，需要准备PPT； 后天是妈妈生日，记得准备礼物：7号到14号是xx生理期，记得别惹她生气；"
                         class="ai-textarea" :disabled="isLoading" rows="4" required></textarea>
                     <div class="ai-actions">
@@ -106,7 +106,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { TodoVo } from '@/model/todo';
 import defaultAIService from "@/common/ai";
@@ -124,6 +124,7 @@ const aiInput = ref('')
 const isLoading = ref(false)
 const showForm = ref(false)
 const isAIConfigured = ref(false)
+const aiTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const todo = ref<TodoVo>({
     title: '',
@@ -329,7 +330,13 @@ onMounted(async () => {
     }
     
     // 检查AI配置（仅在新增模式下）
-    checkAIConfiguration()
+    await checkAIConfiguration();
+    
+    // 如果AI已配置且不在表单阶段，聚焦到textarea
+    if (isAIConfigured.value && !showForm.value) {
+        await nextTick();
+        aiTextareaRef.value?.focus();
+    }
 })
 </script>
 
