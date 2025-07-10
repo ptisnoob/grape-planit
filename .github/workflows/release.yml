@@ -1,0 +1,186 @@
+name: Release Build and Deploy
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-deploy:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+            target: 'aarch64-apple-darwin'
+            arch: 'arm64'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+            target: 'x86_64-apple-darwin'
+            arch: 'x64'
+          - platform: 'ubuntu-22.04'
+            args: ''
+            target: 'x86_64-unknown-linux-gnu'
+            arch: 'x64'
+          - platform: 'windows-latest'
+            args: ''
+            target: 'x86_64-pc-windows-msvc'
+            arch: 'x64'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'PlanIt ${{ github.ref_name }}'
+          releaseBody: 'See the assets to download and install this version.'
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      - name: Upload to Cloudflare R2
+        env:
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+          CLOUDFLARE_R2_ENDPOINT: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
+        run: |
+          # Install AWS CLI for S3-compatible operations
+          if [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
+            sudo apt-get install -y awscli
+          elif [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
+            brew install awscli
+          elif [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
+            choco install awscli
+          fi
+          
+          # Configure AWS CLI for R2
+          aws configure set aws_access_key_id $CLOUDFLARE_R2_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $CLOUDFLARE_R2_SECRET_ACCESS_KEY
+          aws configure set region auto
+          
+          # Upload build artifacts to R2
+          VERSION=${{ github.ref_name }}
+          PLATFORM_NAME=""
+          
+          if [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
+            PLATFORM_NAME="linux"
+          elif [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
+            if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+              PLATFORM_NAME="darwin-aarch64"
+            else
+              PLATFORM_NAME="darwin-x64"
+            fi
+          elif [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
+            PLATFORM_NAME="windows"
+          fi
+          
+          # Find and upload build artifacts
+          find src-tauri/target/release/bundle -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" | while read file; do
+            filename=$(basename "$file")
+            aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+            echo "Uploaded: $filename to releases/$VERSION/$PLATFORM_NAME/"
+          done
+          
+          # Upload updater files if they exist
+          if [[ -f "src-tauri/target/release/bundle/updater/latest.json" ]]; then
+            aws s3 cp "src-tauri/target/release/bundle/updater/latest.json" "s3://$CLOUDFLARE_R2_BUCKET/grape/updates/latest.json" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+            echo "Uploaded updater manifest"
+          fi
+          
+          # Upload signature files
+          find src-tauri/target/release/bundle -name "*.sig" | while read file; do
+            filename=$(basename "$file")
+            aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+            echo "Uploaded signature: $filename"
+          done
+
+  create-release-manifest:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create release manifest
+        env:
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+          CLOUDFLARE_R2_ENDPOINT: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
+        run: |
+          sudo apt-get install -y awscli jq
+          
+          # Configure AWS CLI for R2
+          aws configure set aws_access_key_id $CLOUDFLARE_R2_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $CLOUDFLARE_R2_SECRET_ACCESS_KEY
+          aws configure set region auto
+          
+          VERSION=${{ github.ref_name }}
+          
+          # Create release manifest
+          cat > release-manifest.json << EOF
+          {
+            "version": "$VERSION",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "",
+                "url": "https://oss.ttata.com/releases/$VERSION/linux/"
+              },
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "https://oss.ttata.com/releases/$VERSION/darwin-x64/"
+              },
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://oss.ttata.com/releases/$VERSION/darwin-aarch64/"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://oss.ttata.com/releases/$VERSION/windows/"
+              }
+            }
+          }
+          EOF
+          
+          # Upload release manifest
+          aws s3 cp release-manifest.json "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/manifest.json" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+          echo "Release manifest created and uploaded"
