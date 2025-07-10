@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*.*.*'
 
+permissions:
+  contents: write
+  packages: write
+  actions: read
+  security-events: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -113,20 +119,34 @@ jobs:
           fi
           
           # Find and upload build artifacts
-          find src-tauri/target/release/bundle -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.exe" | while read file; do
-            filename=$(basename "$file")
-            aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
-            echo "Uploaded: $filename to releases/$VERSION/$PLATFORM_NAME/"
-          done
+          if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
+            find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.msi" -o -name "*.exe" | while read file; do
+              filename=$(basename "$file")
+              aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+              echo "Uploaded: $filename to releases/$VERSION/$PLATFORM_NAME/"
+            done
+          elif [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
+            find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.deb" -o -name "*.AppImage" | while read file; do
+              filename=$(basename "$file")
+              aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+              echo "Uploaded: $filename to releases/$VERSION/$PLATFORM_NAME/"
+            done
+          elif [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
+            find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.dmg" | while read file; do
+              filename=$(basename "$file")
+              aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+              echo "Uploaded: $filename to releases/$VERSION/$PLATFORM_NAME/"
+            done
+          fi
           
           # Upload updater files if they exist
-          if [[ -f "src-tauri/target/release/bundle/updater/latest.json" ]]; then
-            aws s3 cp "src-tauri/target/release/bundle/updater/latest.json" "s3://$CLOUDFLARE_R2_BUCKET/grape/updates/latest.json" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+          if [[ -f "src-tauri/target/${{ matrix.target }}/release/bundle/updater/latest.json" ]]; then
+            aws s3 cp "src-tauri/target/${{ matrix.target }}/release/bundle/updater/latest.json" "s3://$CLOUDFLARE_R2_BUCKET/updates/latest.json" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
             echo "Uploaded updater manifest"
           fi
           
           # Upload signature files
-          find src-tauri/target/release/bundle -name "*.sig" | while read file; do
+          find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.sig" | while read file; do
             filename=$(basename "$file")
             aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
             echo "Uploaded signature: $filename"
