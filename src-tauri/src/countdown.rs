@@ -83,7 +83,7 @@ pub async fn calculate_work_end_countdown(pool: &SqlitePool) -> Option<Countdown
             Some(CountdownData {
                 mode: "workEnd".to_string(),
                 timestamp: total_seconds,
-                target_info: format!("下班时间：{}", config.work_end_time),
+                target_info: "下班".to_string(),
                 status: "running".to_string(),
             })
         }

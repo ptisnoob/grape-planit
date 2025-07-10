@@ -11,12 +11,12 @@
 
             <!-- 雨滴动画 -->
             <div class="rain" v-if="shouldShowRain && !shouldShowSnow">
-                <div class="raindrop" v-for="n in 20" :key="n" :style="getRaindropStyle(n)">💧</div>
+                <div class="raindrop" v-for="n in 20" :key="n" :style="getRaindropStyle()">💧</div>
             </div>
 
             <!-- 雪花动画 -->
             <div class="snow" v-if="shouldShowSnow">
-                <div class="snowflake" v-for="n in 15" :key="n" :style="getSnowflakeStyle(n)">❄️</div>
+                <div class="snowflake" v-for="n in 15" :key="n" :style="getSnowflakeStyle()">❄️</div>
             </div>
 
             <!-- 晴天指示器 -->
@@ -193,7 +193,7 @@ const getWeatherIcon = (weather: string) => {
 }
 
 // 天气动画样式生成方法
-const getRaindropStyle = (index: number) => {
+const getRaindropStyle = () => {
     const left = Math.random() * 100
     const animationDelay = Math.random() * 2
     const animationDuration = 1 + Math.random() * 2
@@ -204,7 +204,7 @@ const getRaindropStyle = (index: number) => {
     }
 }
 
-const getSnowflakeStyle = (index: number) => {
+const getSnowflakeStyle = () => {
     const left = Math.random() * 100
     const animationDelay = Math.random() * 3
     const animationDuration = 3 + Math.random() * 4
@@ -445,7 +445,7 @@ onUnmounted(() => {
 .sun-circle {
     width: 100%;
     height: 100%;
-    background: #FFD700;
+    background: #FFD7003D;
     border-radius: 50%;
     box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
     position: relative;

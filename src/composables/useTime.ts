@@ -214,7 +214,7 @@ export function useCountdown() {
     
     if (data.status === 'running' && data.timestamp > 0) {
       const timeText = formatCountdownTime(data.timestamp)
-      return `距离${data.target_info},还剩${timeText}`
+      return `离${data.target_info}还剩${timeText}`
     }
     
     return `${data.target_info}未开始`
