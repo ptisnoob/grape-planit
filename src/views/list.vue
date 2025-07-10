@@ -21,9 +21,9 @@
           <!-- 任务描述 -->
           <p v-if="focusMode.todo?.notes" class="focus-notes">{{ focusMode.todo.notes }}</p>
           <!-- 专注计时器 -->
-          <div class="focus-timer">
-            <div class="timer-display">{{ formatFocusTime(focusMode.elapsedTime) }}</div>
-          </div>
+        <div class="focus-timer">
+          <div class="timer-display animate__animated animate__pulse animate__infinite animate__slow">{{ formatFocusTime(focusMode.elapsedTime) }}</div>
+        </div>
 
           <!-- 操作按钮 -->
           <transition enter-active-class="animate__animated animate__slideInUp animate__faster"
@@ -487,10 +487,12 @@ const formatFocusTime = (milliseconds: number) => {
 .timer-display {
   font-size: 3rem;
   font-weight: 300;
-  font-family: 'Courier New', monospace;
+  /* font-family: 'Courier New', monospace; */
   margin-bottom: 8px;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  letter-spacing: 2px;
+  letter-spacing: 6px;
+  padding: 0 12px;
+  animation: timerPulse 2s ease-in-out infinite;
 }
 
 .timer-label {
@@ -601,6 +603,17 @@ const formatFocusTime = (milliseconds: number) => {
   }
 }
 
+@keyframes timerPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .focus-mode-container {
@@ -622,6 +635,8 @@ const formatFocusTime = (milliseconds: number) => {
 
   .timer-display {
     font-size: 2.5rem;
+    letter-spacing: 4px;
+    padding: 0 8px;
   }
 
   .focus-timer {
@@ -662,6 +677,8 @@ const formatFocusTime = (milliseconds: number) => {
 
   .timer-display {
     font-size: 2.2rem;
+    letter-spacing: 3px;
+    padding: 0 6px;
   }
 
   .focus-timer {
