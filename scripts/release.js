@@ -79,7 +79,7 @@ try {
 
   console.log('✅ 发布成功！');
   console.log(`🎉 版本 v${newVersion} 已发布，GitHub Actions 将自动构建和部署`);
-  console.log('📊 查看构建状态: https://github.com/your-username/grape-planit/actions');
+  console.log('📊 查看构建状态: https://github.com/ptisnoob/grape-planit/grape-planit/actions');
   
 } catch (error) {
   console.error('❌ 发布失败:', error.message);

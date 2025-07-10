@@ -75,7 +75,7 @@ try {
 
     Write-Host "✅ 发布成功！" -ForegroundColor Green
     Write-Host "🎉 版本 v$Version 已发布，GitHub Actions 将自动构建和部署" -ForegroundColor Green
-    Write-Host "📊 查看构建状态: https://github.com/your-username/grape-planit/actions" -ForegroundColor Cyan
+    Write-Host "📊 查看构建状态: https://github.com/ptisnoob/grape-planit/grape-planit/actions" -ForegroundColor Cyan
     
 } catch {
     Write-Host "❌ 发布失败: $($_.Exception.Message)" -ForegroundColor Red
