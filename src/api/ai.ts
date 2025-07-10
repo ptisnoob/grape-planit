@@ -23,7 +23,7 @@ export class AIApi {
    * 保存 AI 配置到数据库
    */
   static async saveAIConfig(config: AIConfig): Promise<boolean> {
-    const response = await api.call('save_ai_settings_to_db', config);
+    const response = await api.call('save_ai_settings_to_db', { settings: config });
     return response.success;
   }
 
