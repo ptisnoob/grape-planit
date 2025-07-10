@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { databaseApi } from '@/api/services'
+import { databaseApi, windowApi } from '@/api/services'
 
 export type ThemeType = 'light' | 'dark' | 'auto'
 
@@ -29,11 +29,20 @@ export const useTheme = () => {
     // 不再使用localStorage，主题设置由GeneralSettings组件保存到数据库
   }
 
-  const toggleTheme = () => {
+  const toggleTheme = async () => {
     const themes: ThemeType[] = ['light', 'dark', 'auto']
     const currentIndex = themes.indexOf(currentTheme.value)
     const nextIndex = (currentIndex + 1) % themes.length
-    setTheme(themes[nextIndex])
+    const newTheme = themes[nextIndex]
+    
+    // 应用主题到当前窗口
+    setTheme(newTheme)
+    
+    // 应用主题到主窗口
+    await applyThemeToMainWindow(newTheme)
+    
+    // 保存到数据库
+    await saveThemeToDatabase(newTheme)
   }
 
   const initTheme = async () => {
@@ -73,6 +82,40 @@ export const useTheme = () => {
       default: return 'sun'
     }
   })
+
+  // 应用主题到主窗口
+  const applyThemeToMainWindow = async (theme: string) => {
+    try {
+      // 如果是auto模式，需要获取实际的系统主题
+      let actualTheme = theme
+      if (theme === 'auto') {
+        actualTheme = getSystemTheme()
+      }
+
+      // 通过JavaScript在主窗口中设置主题
+      const script = `document.documentElement.setAttribute('data-theme', '${actualTheme}')`
+      await windowApi.evalScript(script)
+    } catch (error) {
+      console.error('应用主题到主窗口失败:', error)
+    }
+  }
+
+  // 保存主题设置到数据库
+  const saveThemeToDatabase = async (theme: ThemeType) => {
+    try {
+      // 先加载当前设置
+      const currentSettings = await databaseApi.window.load()
+      if (currentSettings) {
+        // 更新主题设置
+        currentSettings.theme = theme
+        // 保存到数据库
+        await databaseApi.window.save(currentSettings)
+        console.log('✅ [useTheme] 主题设置已保存到数据库:', theme)
+      }
+    } catch (error) {
+      console.error('❌ [useTheme] 保存主题设置失败:', error)
+    }
+  }
 
   return {
     currentTheme,

@@ -3,7 +3,7 @@
         <div v-if="currentNavIndex === 1" class="link-text activate-text" @click="toggleMode">{{ currentMode.label }}</div>
         <div class="link-text" @click="toggleNav">{{ currentNav.icon }}</div>
         <div class="gap-line"></div>
-        <Icon :name="getThemeIcon" :size="18" @click="toggleTheme" />
+        <Icon :name="getThemeIcon" :size="18" @click="handleToggleTheme" />
         <Icon name="settings" :size="18" @click="openSettings" />
         <Icon name="close" :size="18" @click="handleClose" />
     </div>
@@ -17,6 +17,10 @@ import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
 
 const { initTheme, toggleTheme, getThemeIcon } = useTheme()
+
+const handleToggleTheme = async () => {
+    await toggleTheme()
+}
 const router = useRouter();
 const route = useRoute();
 const emit = defineEmits(['changeMode'])
