@@ -100,8 +100,8 @@ pub fn get_default_window_settings() -> WindowSettings {
 pub fn get_default_ai_settings() -> AISettings {
     AISettings {
         api_key: String::new(),
-        base_url: "https://api.openai.com/v1".to_string(),
-        model: "gpt-3.5-turbo".to_string(),
+        base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
+        model: "glm-4-flash-250414".to_string(),
     }
 }
 

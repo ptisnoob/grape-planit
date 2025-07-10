@@ -12,8 +12,10 @@
                 </div>
 
                 <!-- 版本信息 -->
-                <div class="version-info">
+                <div class="version-info" @click="checkForUpdates" :class="{ 'checking': isCheckingUpdate }">
                     {{ appVersion }}
+                    <span v-if="isCheckingUpdate" class="update-status">检查中...</span>
+                    <span v-else-if="updateAvailable" class="update-status available">有新版本</span>
                 </div>
             </div>
         </div>
@@ -43,6 +45,8 @@
 import { onMounted, ref, computed } from 'vue';
 import { useTheme } from '@/composables/useTheme';
 import { getVersion } from '@tauri-apps/api/app';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 import GeneralSettings from './components/GeneralSettings.vue';
 import TimeSettings from './components/TimeSettings.vue';
 import AISettings from './components/AISettings.vue';
@@ -57,6 +61,9 @@ const { initTheme } = useTheme();
 
 // 应用版本号
 const appVersion = ref('v1.0.0');
+// 更新检查状态
+const isCheckingUpdate = ref(false);
+const updateAvailable = ref(false);
 
 // 菜单项配置
 const menuItems = ref<SelOption[]>([
@@ -82,6 +89,36 @@ const currentMenuLabel = computed(() => {
     const item = menuItems.value.find(i => i.value === activeMenu.value);
     return item ? item.label : '设置';
 });
+
+// 检查更新
+const checkForUpdates = async () => {
+    if (isCheckingUpdate.value) return;
+    
+    isCheckingUpdate.value = true;
+    updateAvailable.value = false;
+    
+    try {
+        const update = await check();
+        if (update?.available) {
+            updateAvailable.value = true;
+            const shouldUpdate = confirm(`发现新版本 ${update.version}！\n\n更新内容：\n${update.body || '修复问题和性能优化'}\n\n是否立即更新？`);
+            
+            if (shouldUpdate) {
+                console.log('开始下载更新...');
+                await update.downloadAndInstall();
+                console.log('更新下载完成，准备重启应用...');
+                await relaunch();
+            }
+        } else {
+            alert('当前已是最新版本！');
+        }
+    } catch (error) {
+        console.error('检查更新失败:', error);
+        alert('检查更新失败，请稍后重试。');
+    } finally {
+        isCheckingUpdate.value = false;
+    }
+};
 
 onMounted(async () => {
     initTheme();
@@ -158,6 +195,34 @@ onMounted(async () => {
         color: var(--text-secondary);
         border-top: 1px solid var(--border-color);
         opacity: 0.7;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        border-radius: 8px;
+        margin: 8px;
+        position: relative;
+
+        &:hover {
+            opacity: 1;
+            background: var(--bg-primary);
+            transform: translateY(-1px);
+        }
+
+        &.checking {
+            opacity: 1;
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .update-status {
+            display: block;
+            font-size: 10px;
+            margin-top: 4px;
+            
+            &.available {
+                color: #ff6b6b;
+                font-weight: bold;
+            }
+        }
     }
 }
 

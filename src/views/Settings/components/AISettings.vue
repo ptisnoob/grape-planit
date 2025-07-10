@@ -15,8 +15,8 @@
         </div>
         <div class="input-group">
           <label class="input-label">Base URL</label>
-          <ConfigTip icon="🌐" title="服务地址" description="AI服务的API基础地址,符合openai格式都可,例：https://api.openai.com/v1"
-            :show="!aiSettings.baseUrl || aiSettings.baseUrl === 'https://api.openai.com/v1'" />
+          <ConfigTip icon="🌐" title="服务地址" description="AI服务的API基础地址,符合openai格式都可,例：https://open.bigmodel.cn/api/paas/v4"
+            :show="!aiSettings.baseUrl || aiSettings.baseUrl === 'https://open.bigmodel.cn/api/paas/v4'" />
           <input type="text" v-model="aiSettings.baseUrl" placeholder="https://open.bigmodel.cn/api/paas/v4" class="config-input">
         </div>
         <div class="input-group">

@@ -25,9 +25,9 @@ export class AIService {
     constructor(config?: Partial<AIServiceConfig>) {
         // 从环境变量或传入参数获取配置
         this.config = {
-            baseUrl: config?.baseUrl || import.meta.env.VITE_OPENAI_BASE_URL || 'https://api.openai.com/v1',
+            baseUrl: config?.baseUrl || import.meta.env.VITE_OPENAI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
             apiKey: config?.apiKey || import.meta.env.VITE_OPENAI_API_KEY || '',
-            model: config?.model || import.meta.env.VITE_OPENAI_MODEL || 'gpt-3.5-turbo',
+            model: config?.model || import.meta.env.VITE_OPENAI_MODEL || 'glm-4-flash-250414',
         };
 
         // 验证配置

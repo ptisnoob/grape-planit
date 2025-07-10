@@ -86,52 +86,15 @@ fn set_window_position(window: tauri::WebviewWindow, position: String) -> Result
 }
 
 fn create_tray_menu(app: &tauri::AppHandle) -> Result<Menu<tauri::Wry>, tauri::Error> {
-    let window = app.get_webview_window("main").unwrap();
-    let is_always_on_top = window.is_always_on_top().unwrap_or(false);
-    let is_decorated = window.is_decorated().unwrap_or(true);
-
-    let toggle_top = MenuItem::with_id(
-        app,
-        "toggle_top",
-        format!("切换置顶 {}", if is_always_on_top { "✓" } else { "" }),
-        true,
-        None::<&str>,
-    )?;
-    let toggle_shadow = MenuItem::with_id(
-        app,
-        "toggle_shadow",
-        format!("毛玻璃效果 {}", if !is_decorated { "✓" } else { "" }),
-        true,
-        None::<&str>,
-    )?;
-
-    let pos_top_left = MenuItem::with_id(app, "pos_top_left", "左上角", true, None::<&str>)?;
-    let pos_top_right = MenuItem::with_id(app, "pos_top_right", "右上角", true, None::<&str>)?;
-    let pos_bottom_left = MenuItem::with_id(app, "pos_bottom_left", "左下角", true, None::<&str>)?;
-    let pos_bottom_right =
-        MenuItem::with_id(app, "pos_bottom_right", "右下角", true, None::<&str>)?;
-
-    let position_submenu = Submenu::with_items(
-        app,
-        "窗口位置",
-        true,
-        &[
-            &pos_top_left,
-            &pos_top_right,
-            &pos_bottom_left,
-            &pos_bottom_right,
-        ],
-    )?;
-
+    let open = MenuItem::with_id(app, "open", "打开", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
     let menu = Menu::with_items(
         app,
         &[
-            &toggle_top,
-            &toggle_shadow,
-            &PredefinedMenuItem::separator(app)?,
-            &position_submenu,
+            &open,
+            &settings,
             &PredefinedMenuItem::separator(app)?,
             &quit,
         ],
@@ -159,38 +122,26 @@ fn handle_tray_event(_tray: &tauri::tray::TrayIcon<tauri::Wry>, event: TrayIconE
 }
 
 fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
-    if let Some(window) = app.get_webview_window("main") {
-        match event.id.as_ref() {
-            "toggle_top" => {
-                let _ = window.set_always_on_top(!window.is_always_on_top().unwrap_or(false));
-                if let Ok(menu) = create_tray_menu(app) {
-                    let _ = app.tray_by_id("tray").unwrap().set_menu(Some(menu));
-                }
+    match event.id.as_ref() {
+        "open" => {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
             }
-            "toggle_shadow" => {
-                let is_decorated = window.is_decorated().unwrap_or(true);
-                let _ = window.set_decorations(!is_decorated);
-                if let Ok(menu) = create_tray_menu(app) {
-                    let _ = app.tray_by_id("tray").unwrap().set_menu(Some(menu));
-                }
-            }
-            "pos_top_left" => {
-                let _ = set_window_position(window.clone(), "top-left".to_string());
-            }
-            "pos_top_right" => {
-                let _ = set_window_position(window.clone(), "top-right".to_string());
-            }
-            "pos_bottom_left" => {
-                let _ = set_window_position(window.clone(), "bottom-left".to_string());
-            }
-            "pos_bottom_right" => {
-                let _ = set_window_position(window.clone(), "bottom-right".to_string());
-            }
-            "quit" => {
-                std::process::exit(0);
-            }
-            _ => {}
         }
+        "settings" => {
+            if let Some(settings_window) = app.get_webview_window("settings") {
+                let _ = settings_window.show();
+                let _ = settings_window.set_focus();
+            } else {
+                // 如果设置窗口不存在，创建一个新的
+                let _ = window_commands::show_settings_window(app.clone());
+            }
+        }
+        "quit" => {
+            std::process::exit(0);
+        }
+        _ => {}
     }
 }
 
@@ -214,6 +165,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
             let rt = tokio::runtime::Runtime::new().unwrap();

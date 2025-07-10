@@ -86,8 +86,8 @@ export class AIApi {
   static async clearAIConfig(): Promise<boolean> {
     return this.saveAIConfig({
       api_key: '',
-      base_url: 'https://api.openai.com/v1',
-      model: 'gpt-3.5-turbo'
+      base_url: 'https://open.bigmodel.cn/api/paas/v4',
+      model: 'glm-4-flash-250414'
     });
   }
 
