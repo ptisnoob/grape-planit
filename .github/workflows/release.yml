@@ -81,7 +81,8 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      - name: Upload to Cloudflare R2
+      - name: Upload to Cloudflare R2 (Unix)
+        if: matrix.platform != 'windows-latest'
         env:
           CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
@@ -93,8 +94,6 @@ jobs:
             sudo apt-get install -y awscli
           elif [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
             brew install awscli
-          elif [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
-            choco install awscli
           fi
           
           # Configure AWS CLI for R2
@@ -114,18 +113,10 @@ jobs:
             else
               PLATFORM_NAME="darwin-x64"
             fi
-          elif [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
-            PLATFORM_NAME="windows"
           fi
           
           # Find and upload build artifacts
-          if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
-            find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.msi" -o -name "*.exe" | while read file; do
-              filename=$(basename "$file")
-              aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
-              echo "Uploaded: $filename to releases/$VERSION/$PLATFORM_NAME/"
-            done
-          elif [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
+          if [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
             find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.deb" -o -name "*.AppImage" | while read file; do
               filename=$(basename "$file")
               aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
@@ -151,6 +142,48 @@ jobs:
             aws s3 cp "$file" "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
             echo "Uploaded signature: $filename"
           done
+
+      - name: Upload to Cloudflare R2 (Windows)
+        if: matrix.platform == 'windows-latest'
+        env:
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+          CLOUDFLARE_R2_ENDPOINT: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
+        shell: pwsh
+        run: |
+          # Install AWS CLI for S3-compatible operations
+          choco install awscli -y
+          
+          # Configure AWS CLI for R2
+          aws configure set aws_access_key_id $env:CLOUDFLARE_R2_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $env:CLOUDFLARE_R2_SECRET_ACCESS_KEY
+          aws configure set region auto
+          
+          # Upload build artifacts to R2
+          $VERSION = "${{ github.ref_name }}"
+          $PLATFORM_NAME = "windows"
+          
+          # Find and upload build artifacts
+          Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle" -Recurse -Include "*.msi", "*.exe" | ForEach-Object {
+            $filename = $_.Name
+            aws s3 cp $_.FullName "s3://$env:CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
+            Write-Host "Uploaded: $filename to releases/$VERSION/$PLATFORM_NAME/"
+          }
+          
+          # Upload updater files if they exist
+          $updaterFile = "src-tauri/target/${{ matrix.target }}/release/bundle/updater/latest.json"
+          if (Test-Path $updaterFile) {
+            aws s3 cp $updaterFile "s3://$env:CLOUDFLARE_R2_BUCKET/updates/latest.json" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
+            Write-Host "Uploaded updater manifest"
+          }
+          
+          # Upload signature files
+          Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle" -Recurse -Include "*.sig" | ForEach-Object {
+            $filename = $_.Name
+            aws s3 cp $_.FullName "s3://$env:CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
+            Write-Host "Uploaded signature: $filename"
+          }
 
   create-release-manifest:
     needs: build-and-deploy
