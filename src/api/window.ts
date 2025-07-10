@@ -1,5 +1,5 @@
 import { api } from './index';
-import type { WindowPosition } from '@/model/window';
+import type { WindowPosition, MonitorInfo } from '@/model/window';
 
 /**
  * 窗口相关 API 服务
@@ -76,6 +76,22 @@ export class WindowApi {
     const response = await api.call('eval_script_in_main_window', { script });
     return response.success;
   }
+
+  /**
+   * 获取所有显示器信息
+   */
+  static async getMonitors(): Promise<MonitorInfo[]> {
+    const response = await api.call<MonitorInfo[]>('get_monitors');
+    return response.success ? (response.data || []) : [];
+  }
+
+  /**
+   * 设置窗口到指定显示器的指定位置
+   */
+  static async setWindowMonitor(monitorIndex: number, position: WindowPosition): Promise<boolean> {
+    const response = await api.call('set_window_monitor', { monitor_index: monitorIndex, position });
+    return response.success;
+  }
 }
 
 /**
@@ -91,4 +107,6 @@ export const windowApi = {
   setMainWindowPosition: WindowApi.setMainWindowPosition,
   setOpacity: WindowApi.setOpacity,
   evalScript: WindowApi.evalScript,
+  getMonitors: WindowApi.getMonitors,
+  setWindowMonitor: WindowApi.setWindowMonitor,
 };

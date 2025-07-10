@@ -33,6 +33,27 @@
     <div class="settings-section">
       <h3 class="section-title">窗口位置</h3>
       <ConfigTip icon="📍" title="窗口位置设置" description="设置主窗口在屏幕上的显示位置。建议选择不影响日常工作的角落位置。" />
+
+      <!-- 显示器选择设置 -->
+      <div class="setting-item" v-if="monitors.length > 1">
+        <label class="setting-label">显示器选择</label>
+        <div class="monitor-layout-container">
+          <div class="monitor-layout" :style="getLayoutStyle()">
+            <div v-for="monitor in monitors" :key="monitor.index" class="monitor-display" :class="{
+              'active': currentSettings.monitor_index === monitor.index,
+              'primary': monitor.is_primary
+            }" :style="getMonitorStyle(monitor)" @click="handleMonitorChange(monitor.index)"
+              :title="`${monitor.name} ${monitor.is_primary ? '(主显示器)' : ''} - ${monitor.size[0]}x${monitor.size[1]}`">
+              <div class="monitor-number">{{ monitor.index + 1 }}</div>
+              <div class="monitor-info">
+                <div class="monitor-resolution">{{ monitor.size[0] }}×{{ monitor.size[1] }}</div>
+                <div class="monitor-primary" v-if="monitor.is_primary">主屏</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="position-grid">
         <button v-for="option in positionOptions" :key="option.value" class="position-btn"
           :class="{ active: currentSettings.window_position === option.value }"
@@ -98,6 +119,7 @@
 import { ref, onMounted } from 'vue'
 import { databaseApi, windowApi, WindowPosition } from '@/api/services'
 import { WindowSettings } from '@/model/settings'
+import type { MonitorInfo } from '@/model/window'
 import { SelOption } from "@/model/public"
 import { useTheme } from '@/composables/useTheme'
 import ConfigTip from '@/components/ConfigTip.vue'
@@ -109,11 +131,90 @@ const currentSettings = ref<WindowSettings>({
   always_on_top: true,
   accent_color: '#007bff',
   recent_days: 5,
-  default_startup: 'auto'
+  default_startup: 'auto',
+  monitor_index: 0
 })
+
+// 显示器列表
+const monitors = ref<MonitorInfo[]>([])
 
 // 使用主题管理
 const { setTheme } = useTheme()
+
+
+// 计算显示器布局的整体样式
+const getLayoutStyle = (): Record<string, string> => {
+  if (monitors.value.length === 0) return {}
+  // 计算所有显示器的边界
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+
+  monitors.value.forEach(monitor => {
+    const [x, y] = monitor.position
+    const [width, height] = monitor.size
+
+    minX = Math.min(minX, x)
+    minY = Math.min(minY, y)
+    maxX = Math.max(maxX, x + width)
+    maxY = Math.max(maxY, y + height)
+  })
+
+  const totalWidth = maxX - minX
+  const totalHeight = maxY - minY
+
+  // 设置容器的宽高比，最大宽度为300px
+  const maxWidth = 300
+  const scale = maxWidth / totalWidth
+  const containerWidth = maxWidth
+  const containerHeight = totalHeight * scale
+
+  return {
+    width: `${containerWidth}px`,
+    height: `${containerHeight}px`,
+    position: 'relative'
+  }
+}
+
+// 计算单个显示器的样式
+const getMonitorStyle = (monitor: MonitorInfo): Record<string, string> => {
+  if (monitors.value.length === 0) return {}
+
+  // 计算所有显示器的边界
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+
+  monitors.value.forEach(m => {
+    const [x, y] = m.position
+    const [width, height] = m.size
+
+    minX = Math.min(minX, x)
+    minY = Math.min(minY, y)
+    maxX = Math.max(maxX, x + width)
+    maxY = Math.max(maxY, y + height)
+  })
+
+  const totalWidth = maxX - minX
+
+  // 计算缩放比例
+  const maxWidth = 300
+  const scale = maxWidth / totalWidth
+
+  // 计算显示器的位置和尺寸
+  const [x, y] = monitor.position
+  const [width, height] = monitor.size
+
+  const left = (x - minX) * scale
+  const top = (y - minY) * scale
+  const scaledWidth = width * scale
+  const scaledHeight = height * scale
+
+  return {
+    position: 'absolute',
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${scaledWidth}px`,
+    height: `${scaledHeight}px`
+  }
+}
 
 
 
@@ -204,11 +305,25 @@ const handleThemeChange = async (newTheme: string) => {
 const handlePositionChange = async (position: WindowPosition) => {
   currentSettings.value.window_position = position
   try {
-    await windowApi.setPosition(position)
+    // 始终使用新的 API，传入当前选中的显示器索引
+    const monitorIndex = currentSettings.value.monitor_index ?? 0
+    await windowApi.setWindowMonitor(monitorIndex, position)
     await saveSettings()
-    console.log('窗口位置设置成功:', position)
+    console.log('窗口位置设置成功:', position, '显示器:', monitorIndex)
   } catch (error) {
     console.error('设置窗口位置失败:', error)
+  }
+}
+
+// 处理显示器变更
+const handleMonitorChange = async (monitorIndex: number) => {
+  currentSettings.value.monitor_index = monitorIndex
+  try {
+    await windowApi.setWindowMonitor(monitorIndex, currentSettings.value.window_position)
+    await saveSettings()
+    console.log('显示器设置成功:', monitorIndex)
+  } catch (error) {
+    console.error('设置显示器失败:', error)
   }
 }
 
@@ -280,6 +395,11 @@ const loadSettings = async () => {
     if (!settings) return
     currentSettings.value = settings
 
+    // 确保 monitor_index 有默认值
+    if (currentSettings.value.monitor_index === undefined || currentSettings.value.monitor_index === null) {
+      currentSettings.value.monitor_index = 0
+    }
+
     // 使用useTheme统一管理主题应用
     setTheme(settings.theme as 'light' | 'dark' | 'auto')
 
@@ -300,8 +420,16 @@ const loadSettings = async () => {
 
 
 // 初始化设置
-onMounted(() => {
-  loadSettings()
+onMounted(async () => {
+  await loadSettings()
+
+  // 加载显示器信息
+  try {
+    monitors.value = await windowApi.getMonitors()
+    console.log('加载显示器信息成功:', monitors.value)
+  } catch (error) {
+    console.error('加载显示器信息失败:', error)
+  }
 })
 </script>
 
@@ -546,12 +674,137 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
 .setting-label {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
+}
+
+/* 显示器布局选择器样式 */
+.monitor-layout-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.monitor-layout {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  padding: 20px;
+  margin: 0 auto;
+}
+
+.monitor-display {
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  min-height: 60px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.monitor-display:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.monitor-display.active {
+  border-color: var(--accent-color);
+  background: var(--accent-color);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.monitor-display.primary {
+  border-width: 3px;
+}
+
+.monitor-display.primary:not(.active) {
+  border-color: #ffc107;
+}
+
+.monitor-number {
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.monitor-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.monitor-resolution {
+  font-size: 10px;
+  opacity: 0.8;
+  text-align: center;
+  line-height: 1;
+}
+
+.monitor-primary {
+  font-size: 8px;
+  background: #ffc107;
+  color: #000;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-weight: bold;
+}
+
+.monitor-display.active .monitor-primary {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent-color);
+}
+
+/* 显示器详细信息样式 */
+.monitor-details {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.detail-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.detail-value {
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+.primary-badge {
+  background: #ffc107;
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: bold;
+  font-family: inherit;
 }
 
 /* 数字输入框样式 */

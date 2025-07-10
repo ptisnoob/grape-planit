@@ -320,6 +320,8 @@ pub fn run() {
             window_commands::set_always_on_top,
 
             window_commands::eval_script_in_main_window,
+            window_commands::get_monitors,
+            window_commands::set_window_monitor,
             countdown::update_countdown_config,
             countdown::start_countdown_timer,
             countdown::reset_work_end_countdown_to_next_day,

@@ -1,4 +1,14 @@
 use tauri::{Manager, Runtime, WebviewWindowBuilder, WebviewUrl, PhysicalPosition};
+use serde::Serialize;
+
+#[derive(Serialize)]
+pub struct MonitorInfo {
+    pub name: String,
+    pub index: usize,
+    pub size: (u32, u32),
+    pub position: (i32, i32),
+    pub is_primary: bool,
+}
 
 #[tauri::command]
 pub async fn show_settings_window<R: Runtime>(app_handle: tauri::AppHandle<R>) -> Result<(), String> {
@@ -105,6 +115,82 @@ pub async fn set_always_on_top<R: Runtime>(app_handle: tauri::AppHandle<R>, alwa
 pub async fn eval_script_in_main_window<R: Runtime>(app_handle: tauri::AppHandle<R>, script: String) -> Result<(), String> {
     if let Some(window) = app_handle.get_webview_window("main") {
         window.eval(&script).map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("主窗口未找到".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn get_monitors<R: Runtime>(app_handle: tauri::AppHandle<R>) -> Result<Vec<MonitorInfo>, String> {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let monitors = window.available_monitors().map_err(|e| e.to_string())?;
+        let primary_monitor = window.primary_monitor().map_err(|e| e.to_string())?;
+        
+        let mut monitor_infos = Vec::new();
+        for (index, monitor) in monitors.iter().enumerate() {
+            let is_primary = if let Some(ref primary) = primary_monitor {
+                monitor.name() == primary.name()
+            } else {
+                index == 0
+            };
+            
+            monitor_infos.push(MonitorInfo {
+                name: monitor.name().map(|s| s.to_string()).unwrap_or_else(|| format!("显示器 {}", index + 1)),
+                index,
+                size: (monitor.size().width, monitor.size().height),
+                position: (monitor.position().x, monitor.position().y),
+                is_primary,
+            });
+        }
+        
+        Ok(monitor_infos)
+    } else {
+        Err("主窗口未找到".to_string())
+    }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn set_window_monitor<R: Runtime>(app_handle: tauri::AppHandle<R>, monitor_index: usize, position: String) -> Result<(), String> {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let monitors = window.available_monitors().map_err(|e| e.to_string())?;
+        
+        if monitor_index >= monitors.len() {
+            return Err("显示器索引超出范围".to_string());
+        }
+        
+        let target_monitor = &monitors[monitor_index];
+        let monitor_size = target_monitor.size();
+        let monitor_position = target_monitor.position();
+        let window_size = window.outer_size().map_err(|e| e.to_string())?;
+        
+        // 获取任务栏高度（Windows上通常为40像素）
+        let taskbar_height = 40;
+        
+        let (x, y) = match position.as_str() {
+            "top-left" => (monitor_position.x, monitor_position.y),
+            "top-right" => (
+                monitor_position.x + monitor_size.width as i32 - window_size.width as i32,
+                monitor_position.y,
+            ),
+            "bottom-left" => (
+                monitor_position.x,
+                monitor_position.y + monitor_size.height as i32 - window_size.height as i32 - taskbar_height,
+            ),
+            "bottom-right" => (
+                monitor_position.x + monitor_size.width as i32 - window_size.width as i32,
+                monitor_position.y + monitor_size.height as i32 - window_size.height as i32 - taskbar_height,
+            ),
+            "center" => (
+                monitor_position.x + (monitor_size.width as i32 - window_size.width as i32) / 2,
+                monitor_position.y + (monitor_size.height as i32 - window_size.height as i32) / 2,
+            ),
+            _ => return Err("Invalid position".to_string()),
+        };
+        
+        window
+            .set_position(PhysicalPosition::new(x, y))
+            .map_err(|e| e.to_string())?;
         Ok(())
     } else {
         Err("主窗口未找到".to_string())
