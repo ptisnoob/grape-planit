@@ -1,6 +1,6 @@
 [package]
 name = "PlanIt"
-version = "1.0.3"
+version = "1.0.4"
 description = "AI TODO管理&时间小组件"
 authors = ["Grape"]
 edition = "2021"
