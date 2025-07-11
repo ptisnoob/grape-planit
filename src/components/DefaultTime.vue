@@ -49,6 +49,7 @@ import WorkEndSettings from './WorkEndSettings.vue'
 import WeatherBackground from './WeatherBackground.vue'
 import { CountdownConfig, CountdownData } from '@/model/countdown'
 import { useModeStore } from '@/store/mode'
+import { useFinalCountdownStore } from '@/store/finalCountdown'
 
 import { useDatabase } from '@/composables/useDatabase'
 import { useTime } from '@/composables/useTime'
@@ -81,6 +82,7 @@ const countdownData = ref<CountdownData | null>(null)
 const config = ref<CountdownConfig | null>(null)
 
 const modeStore = useModeStore()
+const finalCountdownStore = useFinalCountdownStore()
 const { loadConfigFromDb, updateCountdownConfig: updateConfigInDb } = useDatabase()
 
 const showWorkEndSettings = ref(false)
@@ -100,7 +102,7 @@ const displayTime = computed(() => {
         // 如果倒计时已结束（finished状态）
         if (countdownData.value.status === 'finished') {
             if (countdownData.value.mode === 'workEnd') {
-                return '下班'
+                return '已下班'
             }
         }
 
@@ -200,6 +202,9 @@ const setupCountdownListener = async () => {
             if (modeStore.currentMode === 'workEnd' && newData.mode === 'workEnd') {
                 console.log('✅ [DefaultTime] 更新下班倒计时数据')
                 countdownData.value = newData
+                
+                // 同时更新 finalCountdownStore，用于管理最终倒计时显示
+                finalCountdownStore.updateCountdownData(newData, beforeTime.value)
             }
         })
     } catch (error) {
@@ -332,6 +337,9 @@ const updateNextHoliday = async () => {
 onMounted(async () => {
     await loadConfig();
     await setupCountdownListener();
+    
+    // 重置最终倒计时的手动退出标志
+    finalCountdownStore.resetManualExit();
 
     // 启动倒计时服务
     try {

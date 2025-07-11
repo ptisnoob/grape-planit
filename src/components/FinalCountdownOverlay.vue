@@ -61,7 +61,7 @@ const hintText = computed(() => {
         return '点击继续'
     }
 
-    return '最后倒计时'
+    return '下班倒计时'
 })
 
 // 设置倒计时事件监听
@@ -112,6 +112,9 @@ const handleClick = async () => {
         } catch (error) {
             console.error('❌ [FinalCountdownOverlay] 重置下班倒计时失败:', error)
         }
+        
+        // 倒计时自然结束时，重置手动退出标志
+        finalCountdownStore.resetManualExit()
     }
 
     // 隐藏overlay
@@ -121,7 +124,7 @@ const handleClick = async () => {
 // 处理退出按钮点击
 const handleExit = () => {
     console.log('用户主动退出最后倒计时')
-    finalCountdownStore.hideOverlay()
+    finalCountdownStore.hideOverlay(true)
 }
 
 onMounted(async () => {

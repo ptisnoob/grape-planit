@@ -9,6 +9,7 @@ export const useFinalCountdownStore = defineStore('finalCountdown', () => {
   const beforeTime = ref(60) // 进入最后倒计时的阈值（秒）
   const isInEndState = ref(false)
   const isInFinalCountdown = ref(false)
+  const userManuallyExited = ref(false) // 用户是否主动退出标记
 
   // 显示最后倒计时overlay
   const showOverlay = (data: CountdownData, threshold: number = 60) => {
@@ -24,11 +25,15 @@ export const useFinalCountdownStore = defineStore('finalCountdown', () => {
   }
 
   // 隐藏最后倒计时overlay
-  const hideOverlay = () => {
+  const hideOverlay = (manualExit: boolean = false) => {
     isVisible.value = false
     countdownData.value = null
     isInEndState.value = false
     isInFinalCountdown.value = false
+    
+    if (manualExit) {
+      userManuallyExited.value = true
+    }
   }
 
   // 检查是否应该显示最后倒计时
@@ -50,6 +55,12 @@ export const useFinalCountdownStore = defineStore('finalCountdown', () => {
 
   // 更新倒计时数据
   const updateCountdownData = (data: CountdownData, threshold: number = 60) => {
+    // 如果用户已手动退出，忽略后续更新
+    if (userManuallyExited.value) {
+      console.log('🚫 [FinalCountdownStore] 用户已主动退出，忽略倒计时更新')
+      return
+    }
+    
     const wasVisible = isVisible.value
     const shouldShow = shouldShowFinalCountdown(data, threshold)
     
@@ -74,6 +85,11 @@ export const useFinalCountdownStore = defineStore('finalCountdown', () => {
     }
   }
 
+  // 重置用户手动退出标志
+  const resetManualExit = () => {
+    userManuallyExited.value = false
+  }
+
   return {
     // 状态
     isVisible,
@@ -81,11 +97,13 @@ export const useFinalCountdownStore = defineStore('finalCountdown', () => {
     beforeTime,
     isInEndState,
     isInFinalCountdown,
+    userManuallyExited,
     
     // 方法
     showOverlay,
     hideOverlay,
     shouldShowFinalCountdown,
-    updateCountdownData
+    updateCountdownData,
+    resetManualExit
   }
 })
