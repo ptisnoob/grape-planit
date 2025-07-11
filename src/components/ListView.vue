@@ -1,6 +1,6 @@
 <template>
   <div class="list-container">
-    <div v-if="list.length > 0" class="drag-area">
+    <div v-if="list.length > 0" class="drag-area mt-8">
       <div v-for="(item, index) in list" :key="item.id" class="list-item"
         :class="{ 'is-expanded': item.expanded, 'is-dragging': isDragging && dragIndex === index }"
         @mousedown="prepareLongPress($event, index)" @mouseup="cancelLongPressAction"

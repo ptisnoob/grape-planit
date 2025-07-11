@@ -220,8 +220,7 @@ const completeTodo = async () => {
   if (!contextMenu.value.todo) return;
 
   try {
-    const updatedTodo = { ...contextMenu.value.todo, status: 1 };
-    await todoApi.update(updatedTodo);
+    await todoApi.update({ id: contextMenu.value.todo.id, completed: true });
     const newList = [...list.value];
     newList.splice(contextMenu.value.index, 1);
     updateList(newList);
@@ -327,8 +326,7 @@ const completeFocusedTodo = async () => {
   if (!focusMode.value.todo) return;
 
   try {
-    const updatedTodo = { ...focusMode.value.todo, status: 1 };
-    await todoApi.update(updatedTodo);
+    await todoApi.update({ id: focusMode.value.todo.id, completed: true });
 
     // 从列表中移除已完成的任务
     const index = list.value.findIndex(item => item.id === focusMode.value.todo?.id);
