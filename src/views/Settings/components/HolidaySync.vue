@@ -196,7 +196,7 @@ const loadProxySettings = async () => {
     const settings = await holidayApi.getProxySettings();
     if (settings) {
       useProxy.value = settings.enabled;
-      proxyUrl.value = settings.proxyUrl;
+      proxyUrl.value = settings.proxyUrl ?? 'https://ghfast.top/';
     }
   } catch (error) {
     console.error('加载代理配置失败:', error);

@@ -173,8 +173,7 @@ const onMouseUp = async () => {
       }
     } else if (dragAction.value === 'complete') {
       try {
-        const updatedTodo = { ...todo, status: 1 };
-        await todoApi.update(updatedTodo);
+        await todoApi.update({ id: todo.id, completed: true });
         newList.splice(dragIndex.value, 1);
         emit('update:list', newList);
       } catch (error) {

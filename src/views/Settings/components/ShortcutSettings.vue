@@ -3,7 +3,9 @@
     <div class="settings-section">
       <h3 class="section-title">全局快捷键</h3>
       <div class="shortcut-items">
-        <div class="shortcut-item" :class="{ recording: recordingKey === 'toggle_window' }">
+        <div class="shortcut-item" :class="{ recording: recordingKey === 'toggle_window' }"
+          @click="startRecordingShortcut('toggle_window')" @keydown="handleKeyDown($event, 'toggle_window')"
+          tabindex="0" role="button" :aria-label="`设置快捷键: 显示/隐藏主窗口，当前值: ${currentSettings.toggle_window || '未设置'}`">
           <div class="shortcut-info">
             <label class="shortcut-label">显示/隐藏主窗口</label>
             <span class="shortcut-description">快速切换主窗口的显示状态</span>
@@ -12,10 +14,10 @@
             <div class="shortcut-display" :class="{
               recording: recordingKey === 'toggle_window',
               'has-value': currentSettings.toggle_window
-            }" @click="startRecordingShortcut('toggle_window')" @keydown="handleKeyDown($event, 'toggle_window')"
-              tabindex="0">
+            }">
               <span v-if="recordingKey === 'toggle_window'" class="recording-text">
-                录制中
+                <span class="recording-icon">⌨️</span>
+                录制中... (按任意组合键)
               </span>
               <span v-else-if="currentSettings.toggle_window" class="shortcut-keys">
                 <span v-for="(key, index) in formatShortcutKeys(currentSettings.toggle_window)" :key="index"
@@ -23,16 +25,21 @@
                   {{ key }}
                 </span>
               </span>
-              <span v-else class="placeholder-text">点击设置</span>
+              <span v-else class="placeholder-text">
+                <span class="click-icon">👆</span>
+                点击设置快捷键
+              </span>
             </div>
-            <button @click="resetShortcut('toggle_window')" class="reset-btn" title="重置为默认"
+            <button @click.stop="resetShortcut('toggle_window')" class="reset-btn" title="重置为默认"
               :disabled="recordingKey === 'toggle_window'">
               ×
             </button>
           </div>
         </div>
 
-        <div class="shortcut-item" :class="{ recording: recordingKey === 'quick_add_todo' }">
+        <div class="shortcut-item" :class="{ recording: recordingKey === 'quick_add_todo' }"
+          @click="startRecordingShortcut('quick_add_todo')" @keydown="handleKeyDown($event, 'quick_add_todo')"
+          tabindex="0" role="button" :aria-label="`设置快捷键: 快速创建待办，当前值: ${currentSettings.quick_add_todo || '未设置'}`">
           <div class="shortcut-info">
             <label class="shortcut-label">快速创建待办</label>
             <span class="shortcut-description">快速打开添加待办事项界面</span>
@@ -41,10 +48,10 @@
             <div class="shortcut-display" :class="{
               recording: recordingKey === 'quick_add_todo',
               'has-value': currentSettings.quick_add_todo
-            }" @click="startRecordingShortcut('quick_add_todo')" @keydown="handleKeyDown($event, 'quick_add_todo')"
-              tabindex="0">
+            }">
               <span v-if="recordingKey === 'quick_add_todo'" class="recording-text">
-                录制中
+                <span class="recording-icon">⌨️</span>
+                录制中... (按任意组合键)
               </span>
               <span v-else-if="currentSettings.quick_add_todo" class="shortcut-keys">
                 <span v-for="(key, index) in formatShortcutKeys(currentSettings.quick_add_todo)" :key="index"
@@ -52,12 +59,38 @@
                   {{ key }}
                 </span>
               </span>
-              <span v-else class="placeholder-text">点击设置快捷键</span>
+              <span v-else class="placeholder-text">
+                <span class="click-icon">👆</span>
+                点击设置快捷键
+              </span>
             </div>
-            <button @click="resetShortcut('quick_add_todo')" class="reset-btn" title="重置为默认"
+            <button @click.stop="resetShortcut('quick_add_todo')" class="reset-btn" title="重置为默认"
               :disabled="recordingKey === 'quick_add_todo'">
               ×
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 使用说明 -->
+      <div class="shortcut-help">
+        <h4 class="help-title">使用说明</h4>
+        <div class="help-items">
+          <div class="help-item">
+            <span class="help-key">点击</span>
+            <span class="help-text">开始录制快捷键</span>
+          </div>
+          <div class="help-item">
+            <span class="help-key">Enter/Space</span>
+            <span class="help-text">键盘开始录制</span>
+          </div>
+          <div class="help-item">
+            <span class="help-key">Esc</span>
+            <span class="help-text">取消录制或重置</span>
+          </div>
+          <div class="help-item">
+            <span class="help-key">Delete</span>
+            <span class="help-text">重置快捷键</span>
           </div>
         </div>
       </div>
@@ -93,16 +126,21 @@ const { startRecording, stopRecording: stopRecordingTimer } = useRecordingTimer(
 
 // 开始录制快捷键
 const startRecordingShortcut = async (type: keyof ShortcutSettings) => {
+  // 如果已经在录制其他快捷键，先停止
+  if (recordingKey.value && recordingKey.value !== type) {
+    stopRecording()
+  }
+
   recordingKey.value = type
 
-  // 5秒后自动停止录制
+  // 8秒后自动停止录制（增加时间）
   startRecording(() => {
     stopRecording()
-  }, 5000)
+  }, 8000)
 
   await nextTick()
-  // 聚焦到对应的显示区域
-  const element = document.querySelector(`[tabindex="0"]`) as HTMLElement
+  // 聚焦到对应的快捷键项
+  const element = document.querySelector(`[aria-label*="${type === 'toggle_window' ? '显示/隐藏主窗口' : '快速创建待办'}"]`) as HTMLElement
   if (element) {
     element.focus()
   }
@@ -116,10 +154,29 @@ const stopRecording = () => {
 
 // 处理按键事件
 const handleKeyDown = (event: KeyboardEvent, key: keyof ShortcutSettings) => {
-  if (recordingKey.value !== key) return
+  // 如果不在录制状态，检查是否是启动录制的按键
+  if (recordingKey.value !== key) {
+    // 按 Enter 或 Space 开始录制
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      startRecordingShortcut(key)
+    }
+    // 按 Escape 或 Delete 重置快捷键
+    else if (event.key === 'Escape' || event.key === 'Delete') {
+      event.preventDefault()
+      resetShortcut(key)
+    }
+    return
+  }
 
   event.preventDefault()
   event.stopPropagation()
+
+  // 按 Escape 取消录制
+  if (event.key === 'Escape') {
+    stopRecording()
+    return
+  }
 
   // 忽略单独的修饰键
   if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
@@ -151,7 +208,9 @@ const handleKeyDown = (event: KeyboardEvent, key: keyof ShortcutSettings) => {
       'HOME': 'Home',
       'END': 'End',
       'PAGEUP': 'PageUp',
-      'PAGEDOWN': 'PageDown'
+      'PAGEDOWN': 'PageDown',
+      'BACKSPACE': 'Backspace',
+      'TAB': 'Tab'
     }
 
     if (keyMap[mainKey]) {
@@ -304,17 +363,41 @@ onUnmounted(() => {
   border-radius: 8px;
   border: 1px solid var(--border-color);
   transition: all 0.3s ease;
+  cursor: pointer;
+  outline: none;
+  position: relative;
 }
 
 .shortcut-item:hover {
   border-color: var(--accent-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.shortcut-item:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.2);
+  outline: none;
 }
 
 .shortcut-item.recording {
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
-  background: linear-gradient(135deg, var(--bg-primary) 0%, rgba(var(--accent-color-rgb), 0.05) 100%);
+  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.3);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, rgba(var(--accent-color-rgb), 0.08) 100%);
+  animation: recording-pulse 2s infinite;
+}
+
+.shortcut-item.recording::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 10px;
+  background: linear-gradient(45deg, var(--accent-color), transparent, var(--accent-color));
+  z-index: -1;
+  animation: recording-border 3s linear infinite;
 }
 
 .shortcut-info {
@@ -378,9 +461,23 @@ onUnmounted(() => {
 
 .recording-text {
   color: var(--accent-color);
-  font-weight: 400;
-  font-size: 11px;
+  font-weight: 500;
+  font-size: 12px;
   animation: blink 1.5s infinite;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.recording-icon {
+  font-size: 14px;
+  animation: bounce 1s infinite;
+}
+
+.click-icon {
+  font-size: 12px;
+  margin-right: 4px;
+  opacity: 0.8;
 }
 
 .shortcut-keys {
@@ -407,8 +504,12 @@ onUnmounted(() => {
 
 .placeholder-text {
   color: var(--text-secondary);
-  font-size: 11px;
-  opacity: 0.7;
+  font-size: 12px;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
 }
 
 .reset-btn {
@@ -442,8 +543,23 @@ onUnmounted(() => {
 
 /* 快捷键说明样式 */
 .shortcut-help {
+  margin-top: 24px;
+  padding: 20px;
+  background: rgba(var(--accent-color-rgb), 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(var(--accent-color-rgb), 0.1);
+}
+
+.help-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+}
+
+.help-items {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
 
@@ -453,22 +569,33 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px 12px;
   border-radius: 6px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.help-item:hover {
+  border-color: rgba(var(--accent-color-rgb), 0.3);
+  background: rgba(var(--accent-color-rgb), 0.02);
 }
 
 .help-key {
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
   background: var(--accent-color);
   color: white;
   font-size: 11px;
   font-weight: 500;
-  font-family: monospace;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', monospace;
+  min-width: fit-content;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .help-text {
   font-size: 12px;
   color: var(--text-secondary);
+  flex: 1;
 }
 
 @keyframes blink {
@@ -481,6 +608,49 @@ onUnmounted(() => {
   51%,
   100% {
     opacity: 0.6;
+  }
+}
+
+@keyframes bounce {
+
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-3px);
+  }
+
+  60% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes recording-pulse {
+  0% {
+    box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(var(--accent-color-rgb), 0.1);
+  }
+
+  100% {
+    box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.3);
+  }
+}
+
+@keyframes recording-border {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 200% 50%;
   }
 }
 
