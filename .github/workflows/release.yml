@@ -164,11 +164,34 @@ jobs:
           $VERSION = "${{ github.ref_name }}"
           $PLATFORM_NAME = "windows"
           
-          # Find and upload build artifacts
-          Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle" -Recurse -Include "*.msi", "*.exe" | ForEach-Object {
-            $filename = $_.Name
-            aws s3 cp $_.FullName "s3://$env:CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
-            Write-Host "Uploaded: $filename to releases/$VERSION/$PLATFORM_NAME/"
+          # Debug: List the target directory structure
+          Write-Host "Listing target directory structure:"
+          if (Test-Path "src-tauri/target/${{ matrix.target }}/release/bundle") {
+            Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle" -Recurse | ForEach-Object {
+              Write-Host $_.FullName
+            }
+          } else {
+            Write-Host "Bundle directory not found at src-tauri/target/${{ matrix.target }}/release/bundle"
+          }
+          
+          # Find and upload MSI files
+          $msiPath = "src-tauri/target/${{ matrix.target }}/release/bundle/msi"
+          if (Test-Path $msiPath) {
+            Get-ChildItem -Path $msiPath -Include "*.msi" | ForEach-Object {
+              $filename = $_.Name
+              aws s3 cp $_.FullName "s3://$env:CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
+              Write-Host "Uploaded MSI: $filename to releases/$VERSION/$PLATFORM_NAME/"
+            }
+          }
+          
+          # Find and upload NSIS files
+          $nsisPath = "src-tauri/target/${{ matrix.target }}/release/bundle/nsis"
+          if (Test-Path $nsisPath) {
+            Get-ChildItem -Path $nsisPath -Include "*.exe" | ForEach-Object {
+              $filename = $_.Name
+              aws s3 cp $_.FullName "s3://$env:CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
+              Write-Host "Uploaded NSIS: $filename to releases/$VERSION/$PLATFORM_NAME/"
+            }
           }
           
           # Upload updater files if they exist
@@ -178,11 +201,22 @@ jobs:
             Write-Host "Uploaded updater manifest"
           }
           
-          # Upload signature files
-          Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle" -Recurse -Include "*.sig" | ForEach-Object {
-            $filename = $_.Name
-            aws s3 cp $_.FullName "s3://$env:CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
-            Write-Host "Uploaded signature: $filename"
+          # Upload signature files from MSI directory
+          if (Test-Path $msiPath) {
+            Get-ChildItem -Path $msiPath -Include "*.sig" | ForEach-Object {
+              $filename = $_.Name
+              aws s3 cp $_.FullName "s3://$env:CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
+              Write-Host "Uploaded MSI signature: $filename"
+            }
+          }
+          
+          # Upload signature files from NSIS directory
+          if (Test-Path $nsisPath) {
+            Get-ChildItem -Path $nsisPath -Include "*.sig" | ForEach-Object {
+              $filename = $_.Name
+              aws s3 cp $_.FullName "s3://$env:CLOUDFLARE_R2_BUCKET/releases/$VERSION/$PLATFORM_NAME/$filename" --endpoint-url="$env:CLOUDFLARE_R2_ENDPOINT"
+              Write-Host "Uploaded NSIS signature: $filename"
+            }
           }
 
   create-release-manifest:

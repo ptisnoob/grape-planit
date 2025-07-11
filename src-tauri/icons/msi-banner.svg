@@ -1,0 +1,38 @@
+<svg width="493" height="58" viewBox="0 0 493 58" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="msiBannerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="1" dy="1" stdDeviation="1" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="493" height="58" fill="url(#msiBannerGradient)"/>
+  
+  <!-- App Icon -->
+  <circle cx="29" cy="29" r="22" fill="white" opacity="0.95" filter="url(#shadow)"/>
+  <circle cx="29" cy="29" r="18" fill="#4facfe"/>
+  <path d="M20 29 L26 35 L38 23" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- App Title -->
+  <text x="65" y="24" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="16" font-weight="600" fill="white">PlanIt 安装向导</text>
+  <text x="65" y="40" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="11" fill="white" opacity="0.9">欢迎使用 PlanIt 智能计划管理工具</text>
+  
+  <!-- Microsoft Style Icon -->
+  <g transform="translate(430, 15)">
+    <rect x="0" y="0" width="12" height="12" fill="white" opacity="0.8" rx="1"/>
+    <rect x="15" y="0" width="12" height="12" fill="white" opacity="0.8" rx="1"/>
+    <rect x="0" y="15" width="12" height="12" fill="white" opacity="0.8" rx="1"/>
+    <rect x="15" y="15" width="12" height="12" fill="white" opacity="0.8" rx="1"/>
+  </g>
+  
+  <!-- Progress indicator dots -->
+  <g transform="translate(350, 25)">
+    <circle cx="0" cy="4" r="2" fill="white" opacity="0.6"/>
+    <circle cx="10" cy="4" r="2" fill="white" opacity="0.8"/>
+    <circle cx="20" cy="4" r="2" fill="white" opacity="1"/>
+  </g>
+</svg>
