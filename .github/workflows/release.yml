@@ -294,3 +294,125 @@ jobs:
           # Upload release manifest
           aws s3 cp release-manifest.json "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/manifest.json" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
           echo "Release manifest created and uploaded"
+          
+          # Create latest.json for updater with proper format
+          # Get app name from Cargo.toml
+          APP_NAME=$(grep '^name = ' src-tauri/Cargo.toml | sed 's/name = "\(.*\)"/\1/')
+          
+          # Function to get signature from R2
+          get_signature() {
+            local platform=$1
+            local file_pattern=$2
+            
+            # Try to download and read signature file
+            local sig_file=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$platform/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.sig$" | grep "$file_pattern" | awk '{print $4}' | head -1)
+            if [ ! -z "$sig_file" ]; then
+              aws s3 cp "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$platform/$sig_file" "/tmp/$sig_file" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" 2>/dev/null
+              if [ -f "/tmp/$sig_file" ]; then
+                cat "/tmp/$sig_file"
+                rm "/tmp/$sig_file"
+              fi
+            fi
+          }
+          
+          # Get actual file names and signatures
+          LINUX_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/linux/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.AppImage$" | awk '{print $4}' | head -1)
+          LINUX_SIG=$(get_signature "linux" "AppImage")
+          
+          DARWIN_X64_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/darwin-x64/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.dmg$" | awk '{print $4}' | head -1)
+          DARWIN_X64_SIG=$(get_signature "darwin-x64" "dmg")
+          
+          DARWIN_AARCH64_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/darwin-aarch64/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.dmg$" | awk '{print $4}' | head -1)
+          DARWIN_AARCH64_SIG=$(get_signature "darwin-aarch64" "dmg")
+          
+          WINDOWS_MSI_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/windows/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.msi$" | awk '{print $4}' | head -1)
+          WINDOWS_MSI_SIG=$(get_signature "windows" "msi")
+          
+          WINDOWS_EXE_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/windows/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.exe$" | awk '{print $4}' | head -1)
+          WINDOWS_EXE_SIG=$(get_signature "windows" "exe")
+          
+          # Create latest.json with proper Tauri updater format
+          cat > latest.json << EOF
+          {
+            "version": "$VERSION",
+            "notes": "Release $VERSION",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+          EOF
+          
+          # Add Linux platform if file exists
+          if [ ! -z "$LINUX_FILE" ]; then
+            cat >> latest.json << EOF
+              "linux-x86_64": {
+                "signature": "${LINUX_SIG:-""}",
+                "url": "https://oss.ttata.com/releases/$VERSION/linux/$LINUX_FILE"
+              },
+          EOF
+          fi
+          
+          # Add macOS x64 platform if file exists
+          if [ ! -z "$DARWIN_X64_FILE" ]; then
+            cat >> latest.json << EOF
+              "darwin-x86_64": {
+                "signature": "${DARWIN_X64_SIG:-""}",
+                "url": "https://oss.ttata.com/releases/$VERSION/darwin-x64/$DARWIN_X64_FILE"
+              },
+          EOF
+          fi
+          
+          # Add macOS ARM64 platform if file exists
+          if [ ! -z "$DARWIN_AARCH64_FILE" ]; then
+            cat >> latest.json << EOF
+              "darwin-aarch64": {
+                "signature": "${DARWIN_AARCH64_SIG:-""}",
+                "url": "https://oss.ttata.com/releases/$VERSION/darwin-aarch64/$DARWIN_AARCH64_FILE"
+              },
+          EOF
+          fi
+          
+          # Add Windows platform (prefer MSI over EXE)
+          if [ ! -z "$WINDOWS_MSI_FILE" ]; then
+            cat >> latest.json << EOF
+              "windows-x86_64": {
+                "signature": "${WINDOWS_MSI_SIG:-""}",
+                "url": "https://oss.ttata.com/releases/$VERSION/windows/$WINDOWS_MSI_FILE"
+              }
+          EOF
+          elif [ ! -z "$WINDOWS_EXE_FILE" ]; then
+            cat >> latest.json << EOF
+              "windows-x86_64": {
+                "signature": "${WINDOWS_EXE_SIG:-""}",
+                "url": "https://oss.ttata.com/releases/$VERSION/windows/$WINDOWS_EXE_FILE"
+              }
+          EOF
+          fi
+          
+          # Close the JSON structure
+          cat >> latest.json << EOF
+            }
+          }
+          EOF
+          
+          # Clean up trailing comma if exists
+          sed -i 's/,\([[:space:]]*}[[:space:]]*}[[:space:]]*$\)/\1/' latest.json
+          
+          # Validate JSON format
+          if jq empty latest.json 2>/dev/null; then
+            echo "✓ latest.json is valid JSON"
+            cat latest.json
+          else
+            echo "✗ latest.json is invalid JSON, fixing..."
+            # Fallback: create a simple valid JSON
+            cat > latest.json << EOF
+          {
+            "version": "$VERSION",
+            "notes": "Release $VERSION",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {}
+          }
+          EOF
+          fi
+          
+          # Upload latest.json for updater
+          aws s3 cp latest.json "s3://$CLOUDFLARE_R2_BUCKET/releases/latest.json" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
+          echo "Latest.json created and uploaded for updater"
