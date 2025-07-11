@@ -295,9 +295,14 @@ jobs:
           aws s3 cp release-manifest.json "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/manifest.json" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT"
           echo "Release manifest created and uploaded"
           
+          # Wait a bit for all uploads to complete
+          echo "⏳ Waiting for all file uploads to complete..."
+          sleep 30
+          
           # Create latest.json for updater with proper format
           # Get app name from Cargo.toml
           APP_NAME=$(grep '^name = ' src-tauri/Cargo.toml | sed 's/name = "\(.*\)"/\1/')
+          echo "📦 App name: $APP_NAME"
           
           # Function to get signature from R2
           get_signature() {
@@ -315,86 +320,224 @@ jobs:
             fi
           }
           
-          # Get actual file names and signatures
-          LINUX_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/linux/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.AppImage$" | awk '{print $4}' | head -1)
+          # Function to find files with retry mechanism and improved debugging
+          find_file_with_retry() {
+            local platform=$1
+            local pattern=$2
+            local description="$3"
+            local max_attempts=5
+            local attempt=1
+            
+            echo "🔍 Searching for $description in platform: $platform"
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "   Attempt $attempt/$max_attempts: Looking for pattern '$pattern'"
+              
+              # List all files in the platform directory for debugging
+              if [ $attempt -eq 1 ]; then
+                echo "   📁 All files in $platform directory:"
+                aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$platform/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" 2>/dev/null | awk '{print "     " $4}' || echo "     ❌ Failed to list files"
+              fi
+              
+              # Try multiple pattern matching approaches
+              local file=""
+              
+              # Exact extension match
+              file=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$platform/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" 2>/dev/null | grep "\.$pattern$" | awk '{print $4}' | head -1)
+              
+              # If not found, try case-insensitive match
+              if [ -z "$file" ]; then
+                file=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$platform/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" 2>/dev/null | grep -i "\.$pattern$" | awk '{print $4}' | head -1)
+              fi
+              
+              # If still not found, try partial match
+              if [ -z "$file" ]; then
+                file=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/$platform/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" 2>/dev/null | grep "$pattern" | awk '{print $4}' | head -1)
+              fi
+              
+              if [ ! -z "$file" ]; then
+                echo "   ✅ Found: $file"
+                echo "$file"
+                return 0
+              fi
+              
+              echo "   ❌ No file matching '$pattern' found in $platform"
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "   ⏳ Waiting 10 seconds before retry..."
+                sleep 10
+              fi
+              attempt=$((attempt + 1))
+            done
+            
+            echo "   ❌ Failed to find $description after $max_attempts attempts"
+            echo ""
+          }
+          
+          # Get actual file names and signatures with debugging
+          echo "🔍 Searching for files in R2 bucket for version: $VERSION"
+          
+          # List all files in the release directory for debugging
+          echo "📁 Listing all files in releases/$VERSION/:"
+          aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/" --recursive --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" || echo "❌ Failed to list files"
+          
+          # Get files with retry mechanism and improved descriptions
+          echo "🐧 Searching for Linux files..."
+          LINUX_FILE=$(find_file_with_retry "linux" "AppImage" "Linux AppImage installer")
           LINUX_SIG=$(get_signature "linux" "AppImage")
           
-          DARWIN_X64_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/darwin-x64/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.dmg$" | awk '{print $4}' | head -1)
+          echo "🍎 Searching for macOS x64 files..."
+          DARWIN_X64_FILE=$(find_file_with_retry "darwin-x64" "dmg" "macOS x64 DMG installer")
           DARWIN_X64_SIG=$(get_signature "darwin-x64" "dmg")
           
-          DARWIN_AARCH64_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/darwin-aarch64/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.dmg$" | awk '{print $4}' | head -1)
+          echo "🍎 Searching for macOS ARM64 files..."
+          DARWIN_AARCH64_FILE=$(find_file_with_retry "darwin-aarch64" "dmg" "macOS ARM64 DMG installer")
           DARWIN_AARCH64_SIG=$(get_signature "darwin-aarch64" "dmg")
           
-          WINDOWS_MSI_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/windows/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.msi$" | awk '{print $4}' | head -1)
+          echo "🪟 Searching for Windows files..."
+          WINDOWS_MSI_FILE=$(find_file_with_retry "windows" "msi" "Windows MSI installer")
           WINDOWS_MSI_SIG=$(get_signature "windows" "msi")
           
-          WINDOWS_EXE_FILE=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/windows/" --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" | grep "\.exe$" | awk '{print $4}' | head -1)
+          WINDOWS_EXE_FILE=$(find_file_with_retry "windows" "exe" "Windows EXE installer")
           WINDOWS_EXE_SIG=$(get_signature "windows" "exe")
           
+          # Also try alternative file extensions for better coverage
+          if [ -z "$LINUX_FILE" ]; then
+            echo "🔄 Trying alternative Linux formats..."
+            LINUX_FILE=$(find_file_with_retry "linux" "deb" "Linux DEB package")
+          fi
+          
+          if [ -z "$DARWIN_X64_FILE" ]; then
+            echo "🔄 Trying alternative macOS x64 formats..."
+            DARWIN_X64_FILE=$(find_file_with_retry "darwin-x64" "app.tar.gz" "macOS x64 app bundle")
+          fi
+          
+          if [ -z "$DARWIN_AARCH64_FILE" ]; then
+            echo "🔄 Trying alternative macOS ARM64 formats..."
+            DARWIN_AARCH64_FILE=$(find_file_with_retry "darwin-aarch64" "app.tar.gz" "macOS ARM64 app bundle")
+          fi
+          
+          # Summary of found files
+          echo "📋 Final file search summary:"
+          echo "   Linux AppImage: ${LINUX_FILE:-'❌ Not found'}"
+          echo "   Linux Signature: ${LINUX_SIG:-'❌ Not found'}"
+          echo "   macOS x64 File: ${DARWIN_X64_FILE:-'❌ Not found'}"
+          echo "   macOS x64 Signature: ${DARWIN_X64_SIG:-'❌ Not found'}"
+          echo "   macOS ARM64 File: ${DARWIN_AARCH64_FILE:-'❌ Not found'}"
+          echo "   macOS ARM64 Signature: ${DARWIN_AARCH64_SIG:-'❌ Not found'}"
+          echo "   Windows MSI: ${WINDOWS_MSI_FILE:-'❌ Not found'}"
+          echo "   Windows MSI Signature: ${WINDOWS_MSI_SIG:-'❌ Not found'}"
+          echo "   Windows EXE: ${WINDOWS_EXE_FILE:-'❌ Not found'}"
+          echo "   Windows EXE Signature: ${WINDOWS_EXE_SIG:-'❌ Not found'}"
+          
+          # Fallback: If no files found, try a simpler approach
+          if [ -z "$LINUX_FILE" ] && [ -z "$DARWIN_X64_FILE" ] && [ -z "$DARWIN_AARCH64_FILE" ] && [ -z "$WINDOWS_MSI_FILE" ] && [ -z "$WINDOWS_EXE_FILE" ]; then
+            echo "🔄 No files found with primary method, trying fallback approach..."
+            
+            # List all files and try to match them manually
+            echo "📁 All files in release directory:"
+            ALL_FILES=$(aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET/releases/$VERSION/" --recursive --endpoint-url="$CLOUDFLARE_R2_ENDPOINT" 2>/dev/null | awk '{print $4}')
+            echo "$ALL_FILES"
+            
+            # Try to find files using simple grep
+            LINUX_FILE=$(echo "$ALL_FILES" | grep -i "linux" | grep -i "appimage" | head -1 | xargs basename 2>/dev/null)
+            DARWIN_X64_FILE=$(echo "$ALL_FILES" | grep -i "darwin" | grep -i "x64\|x86_64" | grep -i "dmg\|app" | head -1 | xargs basename 2>/dev/null)
+            DARWIN_AARCH64_FILE=$(echo "$ALL_FILES" | grep -i "darwin" | grep -i "aarch64\|arm64" | grep -i "dmg\|app" | head -1 | xargs basename 2>/dev/null)
+            WINDOWS_MSI_FILE=$(echo "$ALL_FILES" | grep -i "windows" | grep -i "msi" | head -1 | xargs basename 2>/dev/null)
+            WINDOWS_EXE_FILE=$(echo "$ALL_FILES" | grep -i "windows" | grep -i "exe" | head -1 | xargs basename 2>/dev/null)
+            
+            echo "🔄 Fallback search results:"
+            echo "   Linux AppImage: ${LINUX_FILE:-'❌ Still not found'}"
+            echo "   macOS x64 File: ${DARWIN_X64_FILE:-'❌ Still not found'}"
+            echo "   macOS ARM64 File: ${DARWIN_AARCH64_FILE:-'❌ Still not found'}"
+            echo "   Windows MSI: ${WINDOWS_MSI_FILE:-'❌ Still not found'}"
+            echo "   Windows EXE: ${WINDOWS_EXE_FILE:-'❌ Still not found'}"
+          fi
+          
           # Create latest.json with proper Tauri updater format
-          cat > latest.json << EOF
-          {
-            "version": "$VERSION",
-            "notes": "Release $VERSION",
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "platforms": {
-          EOF
+          echo "🔧 Creating latest.json..."
+          
+          # Start building the JSON content
+          JSON_CONTENT='{
+            "version": "'$VERSION'",
+            "notes": "Release '$VERSION'",
+            "pub_date": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+            "platforms": {'
+          
+          PLATFORM_ENTRIES=""
           
           # Add Linux platform if file exists
           if [ ! -z "$LINUX_FILE" ]; then
-            cat >> latest.json << EOF
-              "linux-x86_64": {
-                "signature": "${LINUX_SIG:-""}",
-                "url": "https://oss.ttata.com/releases/$VERSION/linux/$LINUX_FILE"
-              },
-          EOF
+            echo "✅ Adding Linux platform to latest.json"
+            if [ ! -z "$PLATFORM_ENTRIES" ]; then
+              PLATFORM_ENTRIES="$PLATFORM_ENTRIES,"
+            fi
+            PLATFORM_ENTRIES="$PLATFORM_ENTRIES
+              \"linux-x86_64\": {
+                \"signature\": \"${LINUX_SIG:-\"\"}\",
+                \"url\": \"https://oss.ttata.com/releases/$VERSION/linux/$LINUX_FILE\"
+              }"
           fi
           
           # Add macOS x64 platform if file exists
           if [ ! -z "$DARWIN_X64_FILE" ]; then
-            cat >> latest.json << EOF
-              "darwin-x86_64": {
-                "signature": "${DARWIN_X64_SIG:-""}",
-                "url": "https://oss.ttata.com/releases/$VERSION/darwin-x64/$DARWIN_X64_FILE"
-              },
-          EOF
+            echo "✅ Adding macOS x64 platform to latest.json"
+            if [ ! -z "$PLATFORM_ENTRIES" ]; then
+              PLATFORM_ENTRIES="$PLATFORM_ENTRIES,"
+            fi
+            PLATFORM_ENTRIES="$PLATFORM_ENTRIES
+              \"darwin-x86_64\": {
+                \"signature\": \"${DARWIN_X64_SIG:-\"\"}\",
+                \"url\": \"https://oss.ttata.com/releases/$VERSION/darwin-x64/$DARWIN_X64_FILE\"
+              }"
           fi
           
           # Add macOS ARM64 platform if file exists
           if [ ! -z "$DARWIN_AARCH64_FILE" ]; then
-            cat >> latest.json << EOF
-              "darwin-aarch64": {
-                "signature": "${DARWIN_AARCH64_SIG:-""}",
-                "url": "https://oss.ttata.com/releases/$VERSION/darwin-aarch64/$DARWIN_AARCH64_FILE"
-              },
-          EOF
+            echo "✅ Adding macOS ARM64 platform to latest.json"
+            if [ ! -z "$PLATFORM_ENTRIES" ]; then
+              PLATFORM_ENTRIES="$PLATFORM_ENTRIES,"
+            fi
+            PLATFORM_ENTRIES="$PLATFORM_ENTRIES
+              \"darwin-aarch64\": {
+                \"signature\": \"${DARWIN_AARCH64_SIG:-\"\"}\",
+                \"url\": \"https://oss.ttata.com/releases/$VERSION/darwin-aarch64/$DARWIN_AARCH64_FILE\"
+              }"
           fi
           
           # Add Windows platform (prefer MSI over EXE)
           if [ ! -z "$WINDOWS_MSI_FILE" ]; then
-            cat >> latest.json << EOF
-              "windows-x86_64": {
-                "signature": "${WINDOWS_MSI_SIG:-""}",
-                "url": "https://oss.ttata.com/releases/$VERSION/windows/$WINDOWS_MSI_FILE"
-              }
-          EOF
+            echo "✅ Adding Windows MSI platform to latest.json"
+            if [ ! -z "$PLATFORM_ENTRIES" ]; then
+              PLATFORM_ENTRIES="$PLATFORM_ENTRIES,"
+            fi
+            PLATFORM_ENTRIES="$PLATFORM_ENTRIES
+              \"windows-x86_64\": {
+                \"signature\": \"${WINDOWS_MSI_SIG:-\"\"}\",
+                \"url\": \"https://oss.ttata.com/releases/$VERSION/windows/$WINDOWS_MSI_FILE\"
+              }"
           elif [ ! -z "$WINDOWS_EXE_FILE" ]; then
-            cat >> latest.json << EOF
-              "windows-x86_64": {
-                "signature": "${WINDOWS_EXE_SIG:-""}",
-                "url": "https://oss.ttata.com/releases/$VERSION/windows/$WINDOWS_EXE_FILE"
-              }
-          EOF
+            echo "✅ Adding Windows EXE platform to latest.json"
+            if [ ! -z "$PLATFORM_ENTRIES" ]; then
+              PLATFORM_ENTRIES="$PLATFORM_ENTRIES,"
+            fi
+            PLATFORM_ENTRIES="$PLATFORM_ENTRIES
+              \"windows-x86_64\": {
+                \"signature\": \"${WINDOWS_EXE_SIG:-\"\"}\",
+                \"url\": \"https://oss.ttata.com/releases/$VERSION/windows/$WINDOWS_EXE_FILE\"
+              }"
           fi
           
-          # Close the JSON structure
-          cat >> latest.json << EOF
+          # Complete the JSON structure
+          JSON_CONTENT="$JSON_CONTENT$PLATFORM_ENTRIES
             }
-          }
-          EOF
+          }"
           
-          # Clean up trailing comma if exists
-          sed -i 's/,\([[:space:]]*}[[:space:]]*}[[:space:]]*$\)/\1/' latest.json
+          # Write the JSON to file
+          echo -e "$JSON_CONTENT" > latest.json
+          
+          echo "📄 Generated latest.json content:"
+          cat latest.json
           
           # Validate JSON format
           if jq empty latest.json 2>/dev/null; then
