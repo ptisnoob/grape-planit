@@ -67,3 +67,11 @@ make build
 # 或者
 yarn tauri build
 ```
+
+### 预览
+![时间小组件](https://github.com/user-attachments/assets/f441921d-2d62-41ee-adac-2ad362af9d7a)
+![专注模式](https://github.com/user-attachments/assets/26a70ad3-a516-45b4-9db7-4248aca02007)
+![设置](https://github.com/user-attachments/assets/01b8483c-e7e6-4fcb-b799-9da6b4d79517)
+
+
+
